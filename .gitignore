@@ -1,0 +1,52 @@
+.env
+.env.local
+.env.*.local
+
+node_modules/
+.next/
+out/
+dist/
+build/
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# WhatsApp Web persistent sessions and cache
+.wwebjs_auth/
+.wwebjs_cache/
+
+# ML
+ml/data/real/**
+!ml/data/real/.gitkeep
+ml/checkpoints/
+ml/wandb/
+*.pkl
+*.bin
+*.safetensors
+*.gguf
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/
+
+# Coverage
+.coverage
+htmlcov/
