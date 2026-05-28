@@ -63,12 +63,22 @@ class TrialResult:
 
 
 def _judge_provider() -> str:
-    """Use the OPPOSITE provider for judging if both keys are available."""
+    """Pick a DIFFERENT provider for judging when possible (anti-bias).
+
+    Preference order if multiple keys are set: anthropic > openai > groq.
+    Falls back to the same provider as the generator if no alternative exists.
+    """
     gen = os.getenv("LLM_PROVIDER", "anthropic")
-    if gen == "anthropic" and os.getenv("OPENAI_API_KEY"):
-        return "openai"
-    if gen == "openai" and os.getenv("ANTHROPIC_API_KEY"):
-        return "anthropic"
+    candidates = []
+    if os.getenv("ANTHROPIC_API_KEY"):
+        candidates.append("anthropic")
+    if os.getenv("OPENAI_API_KEY"):
+        candidates.append("openai")
+    if os.getenv("GROQ_API_KEY"):
+        candidates.append("groq")
+    for c in candidates:
+        if c != gen:
+            return c
     return gen  # fallback: same provider; flag in report
 
 

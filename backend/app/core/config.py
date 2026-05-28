@@ -23,12 +23,15 @@ class Settings(BaseSettings):
     AES_KEY: str = ""
     BRIDGE_SECRET: str = "change-me"
 
-    LLM_PROVIDER: Literal["anthropic", "openai"] = "anthropic"
+    LLM_PROVIDER: Literal["anthropic", "openai", "groq"] = "groq"
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
     OPENAI_EMBED_MODEL: str = "text-embedding-3-large"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
     DATABASE_URL: str = "postgresql+asyncpg://gaia:gaia_dev_password@postgres:5432/gaia"
     MONGO_URI: str = "mongodb://mongo:27017"

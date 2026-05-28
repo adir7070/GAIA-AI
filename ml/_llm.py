@@ -1,4 +1,7 @@
-"""Shared LLM wrapper for ml/. Supports Anthropic + OpenAI; configured via env."""
+"""Shared LLM wrapper for ml/. Supports Anthropic, OpenAI, and Groq.
+
+Configured via env (LLM_PROVIDER + the relevant API key).
+"""
 from __future__ import annotations
 
 import asyncio
@@ -9,14 +12,17 @@ from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-Provider = Literal["anthropic", "openai"]
+Provider = Literal["anthropic", "openai", "groq"]
 
-PROVIDER: Provider = os.getenv("LLM_PROVIDER", "anthropic")  # type: ignore
+PROVIDER: Provider = os.getenv("LLM_PROVIDER", "groq")  # type: ignore
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 
 _anthropic: AsyncAnthropic | None = None
 _openai: AsyncOpenAI | None = None
+_groq: AsyncOpenAI | None = None
 
 
 def _aclient() -> AsyncAnthropic:
@@ -31,6 +37,16 @@ def _oclient() -> AsyncOpenAI:
     if _openai is None:
         _openai = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
     return _openai
+
+
+def _gclient() -> AsyncOpenAI:
+    global _groq
+    if _groq is None:
+        _groq = AsyncOpenAI(
+            api_key=os.getenv("GROQ_API_KEY", ""),
+            base_url=GROQ_BASE_URL,
+        )
+    return _groq
 
 
 @retry(stop=stop_after_attempt(4), wait=wait_exponential(min=1, max=15))
@@ -53,12 +69,15 @@ async def chat(
             messages=[{"role": "user", "content": prompt}],
         )
         return "".join(b.text for b in msg.content if hasattr(b, "text")).strip()
+
+    cli = _gclient() if p == "groq" else _oclient()
+    chosen = model or (GROQ_MODEL if p == "groq" else OPENAI_MODEL)
     msgs = []
     if system:
         msgs.append({"role": "system", "content": system})
     msgs.append({"role": "user", "content": prompt})
-    r = await _oclient().chat.completions.create(
-        model=model or OPENAI_MODEL,
+    r = await cli.chat.completions.create(
+        model=chosen,
         max_tokens=max_tokens,
         temperature=temperature,
         messages=msgs,

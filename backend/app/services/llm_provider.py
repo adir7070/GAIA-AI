@@ -1,4 +1,8 @@
-"""Unified LLM client. Supports Anthropic (default) and OpenAI."""
+"""Unified LLM client. Supports Anthropic, OpenAI, and Groq.
+
+Groq uses an OpenAI-compatible API — we just point the AsyncOpenAI client at
+their base URL with the GROQ_API_KEY.
+"""
 from __future__ import annotations
 
 import logging
@@ -12,10 +16,11 @@ from app.core.config import settings
 
 log = logging.getLogger(__name__)
 
-Provider = Literal["anthropic", "openai"]
+Provider = Literal["anthropic", "openai", "groq"]
 
 _anthropic: AsyncAnthropic | None = None
 _openai: AsyncOpenAI | None = None
+_groq: AsyncOpenAI | None = None
 
 
 def _get_anthropic() -> AsyncAnthropic:
@@ -30,6 +35,16 @@ def _get_openai() -> AsyncOpenAI:
     if _openai is None:
         _openai = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
     return _openai
+
+
+def _get_groq() -> AsyncOpenAI:
+    global _groq
+    if _groq is None:
+        _groq = AsyncOpenAI(
+            api_key=settings.GROQ_API_KEY,
+            base_url=settings.GROQ_BASE_URL,
+        )
+    return _groq
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
@@ -54,13 +69,15 @@ async def generate_text(
         )
         return "".join(block.text for block in msg.content if hasattr(block, "text")).strip()
 
-    cli = _get_openai()
+    # OpenAI and Groq share the same chat-completions interface
+    cli = _get_groq() if p == "groq" else _get_openai()
+    chosen_model = model or (settings.GROQ_MODEL if p == "groq" else settings.OPENAI_MODEL)
     messages: list[dict] = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     resp = await cli.chat.completions.create(
-        model=model or settings.OPENAI_MODEL,
+        model=chosen_model,
         max_tokens=max_tokens,
         temperature=temperature,
         messages=messages,
