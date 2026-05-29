@@ -11,11 +11,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import random
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `from ml.* import`
 
 from ml._llm import chat, gather_with_concurrency  # noqa: E402
 
@@ -60,8 +62,13 @@ def _extract_json(t: str) -> str:
 
 async def gen_incomings(persona: dict, n: int) -> list[str]:
     prompt = INCOMING_PROMPT.format(n=n, persona_summary=persona.get("persona_summary", ""))
-    out = await chat(prompt, temperature=0.95, max_tokens=1500)
-    return json.loads(_extract_json(out))
+    try:
+        out = await chat(prompt, temperature=0.95, max_tokens=800)
+        data = json.loads(_extract_json(out), strict=False)
+        return [str(x) for x in data if str(x).strip()]
+    except Exception as e:  # noqa: BLE001 - skip this user's incomings rather than crash the run
+        print(f"  skip incomings for {persona.get('user_id')}: {type(e).__name__}: {e}")
+        return []
 
 
 async def gen_target(persona: dict, history_sample: list[str], incoming: str) -> str | None:
@@ -77,6 +84,12 @@ async def gen_target(persona: dict, history_sample: list[str], incoming: str) ->
     return out
 
 
+# Bound the number of in-flight oracle calls PER USER. Without this, a user with
+# N pairs fires N concurrent calls, and with several users running at once this
+# floods the provider rate limit (e.g. Groq) during large generation runs.
+_ORACLE_INFLIGHT = int(os.getenv("ORACLE_INFLIGHT", "4"))
+
+
 async def gen_pairs_for_user(
     persona: dict,
     history: list[str],
@@ -88,9 +101,16 @@ async def gen_pairs_for_user(
         return []
     incomings = await gen_incomings(persona, n_pairs)
 
+    sem = asyncio.Semaphore(_ORACLE_INFLIGHT)
+
     async def make(incoming: str) -> dict | None:
-        sample = rng.sample(history, k=min(history_sample_size, len(history)))
-        target = await gen_target(persona, sample, incoming)
+        try:
+            async with sem:
+                sample = rng.sample(history, k=min(history_sample_size, len(history)))
+                target = await gen_target(persona, sample, incoming)
+        except Exception as e:  # noqa: BLE001 - e.g. RetryError on rate limit; skip this pair
+            print(f"  skip pair for {persona.get('user_id')}: {type(e).__name__}")
+            return None
         if not target:
             return None
         return {

@@ -9,8 +9,13 @@ import os
 from typing import Literal
 
 from anthropic import AsyncAnthropic
+from dotenv import find_dotenv, load_dotenv
 from openai import AsyncOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+# Load the repo-root .env regardless of the cwd the script is launched from
+# (ml/ scripts are run via `cd ml && python -m ...`, so the .env is one level up).
+load_dotenv(find_dotenv(usecwd=True))
 
 Provider = Literal["anthropic", "openai", "groq"]
 
@@ -49,7 +54,9 @@ def _gclient() -> AsyncOpenAI:
     return _groq
 
 
-@retry(stop=stop_after_attempt(4), wait=wait_exponential(min=1, max=15))
+# Generous backoff: free Groq tiers enforce a low tokens-per-minute limit, so a
+# rate-limited call must be able to wait out a full ~60s minute window and retry.
+@retry(stop=stop_after_attempt(8), wait=wait_exponential(multiplier=2, min=4, max=60))
 async def chat(
     prompt: str,
     *,

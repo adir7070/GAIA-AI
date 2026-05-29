@@ -13,6 +13,7 @@ from pathlib import Path
 
 # allow `python -m synthetic.generate_personas` from ml/
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `from ml.* import`
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 from ml._llm import chat, gather_with_concurrency  # noqa: E402
@@ -38,15 +39,19 @@ No text outside the JSON.
 OUT = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "personas.jsonl"
 
 
-async def make_one(seed: dict) -> dict:
+async def make_one(seed: dict) -> dict | None:
     prompt = PROMPT.format(
         seed_json=json.dumps(seed, ensure_ascii=False, indent=2),
         user_id=seed["user_id"],
         language=seed["language"],
     )
-    text = await chat(prompt, temperature=0.95, max_tokens=600)
-    text = _extract_json(text)
-    parsed = json.loads(text)
+    try:
+        text = await chat(prompt, temperature=0.95, max_tokens=600)
+        # strict=False tolerates raw control chars the model sometimes emits inside strings
+        parsed = json.loads(_extract_json(text), strict=False)
+    except Exception as e:  # noqa: BLE001 - skip a bad generation instead of killing the whole batch
+        print(f"  skip {seed['user_id']}: {type(e).__name__}: {e}")
+        return None
     parsed["hidden_style"] = seed
     return parsed
 
@@ -76,12 +81,12 @@ async def main():
 
     print(f"Generating {args.n} personas with concurrency={args.concurrency}…")
     coros = [make_one(s) for s in seeds]
-    results = await gather_with_concurrency(coros, args.concurrency)
+    results = [r for r in await gather_with_concurrency(coros, args.concurrency) if r]
 
     with OUT.open("w", encoding="utf-8") as f:
         for p in results:
             f.write(json.dumps(p, ensure_ascii=False) + "\n")
-    print(f"Wrote {len(results)} personas → {OUT}")
+    print(f"Wrote {len(results)}/{args.n} personas → {OUT}")
 
 
 if __name__ == "__main__":

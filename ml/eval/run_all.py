@@ -99,7 +99,48 @@ async def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "eval_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
     (RESULTS_DIR / "eval_report.md").write_text(_to_markdown(report))
+    _write_csv(report, RESULTS_DIR / "eval_report.csv")
     print(f"\nSaved → {RESULTS_DIR / 'eval_report.json'}")
+    print(f"Saved → {RESULTS_DIR / 'eval_report.csv'}")
+
+
+def _write_csv(report: dict, path: Path) -> None:
+    import csv
+
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(
+            [
+                "model",
+                "indist_accuracy",
+                "ci95_low",
+                "ci95_high",
+                "indist_total",
+                "oracle_first_acc",
+                "oracle_second_acc",
+                "style_sim_mean",
+                "style_sim_std",
+                "relevance_mean",
+                "relevance_std",
+            ]
+        )
+        for name, r in report["results"].items():
+            ind, sim, rel = r["indistinguishability"], r["style_similarity"], r["relevance"]
+            w.writerow(
+                [
+                    name,
+                    f"{ind['accuracy']:.4f}",
+                    f"{ind['ci95_low']:.4f}",
+                    f"{ind['ci95_high']:.4f}",
+                    ind["total"],
+                    f"{ind['oracle_first_acc']:.4f}" if ind["oracle_first_acc"] is not None else "",
+                    f"{ind['oracle_second_acc']:.4f}" if ind["oracle_second_acc"] is not None else "",
+                    f"{sim['mean']:.4f}",
+                    f"{sim['std']:.4f}",
+                    f"{rel['mean']:.4f}",
+                    f"{rel['std']:.4f}",
+                ]
+            )
 
 
 def _to_markdown(report: dict) -> str:

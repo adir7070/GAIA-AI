@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `from ml.* import`
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 from ml._llm import chat, gather_with_concurrency  # noqa: E402
@@ -43,13 +44,20 @@ def _extract_json(text: str) -> str:
     return text.strip()
 
 
-async def gen_for(persona: dict, n: int) -> dict:
+async def gen_for(persona: dict, n: int) -> dict | None:
     prompt = PROMPT.format(
         n=n,
         persona_json=json.dumps(persona, ensure_ascii=False, indent=2),
     )
-    text = await chat(prompt, temperature=0.95, max_tokens=2500)
-    msgs = json.loads(_extract_json(text))
+    try:
+        text = await chat(prompt, temperature=0.95, max_tokens=1200)
+        msgs = json.loads(_extract_json(text), strict=False)
+        msgs = [str(m) for m in msgs if str(m).strip()]
+    except Exception as e:  # noqa: BLE001 - skip a bad generation instead of killing the whole batch
+        print(f"  skip history for {persona.get('user_id')}: {type(e).__name__}: {e}")
+        return None
+    if not msgs:
+        return None
     return {"user_id": persona["user_id"], "messages": msgs}
 
 
@@ -66,13 +74,13 @@ async def main():
     print(f"Generating histories for {len(personas)} personas…")
 
     coros = [gen_for(p, args.n_messages) for p in personas]
-    results = await gather_with_concurrency(coros, args.concurrency)
+    results = [r for r in await gather_with_concurrency(coros, args.concurrency) if r]
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open("w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"Wrote {len(results)} histories → {OUT}")
+    print(f"Wrote {len(results)}/{len(personas)} histories → {OUT}")
 
 
 if __name__ == "__main__":

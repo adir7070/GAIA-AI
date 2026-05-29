@@ -6,9 +6,17 @@ stylistically similar. Reported as mean ± std over the test set.
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+# The synthetic dataset is bilingual (Hebrew + English), so we default to a
+# MULTILINGUAL sentence embedder rather than the English-only bge-large-en —
+# an English-only model under-represents Hebrew style and biases the metric.
+# Override with STYLE_EMBED_MODEL if a different model is desired.
+DEFAULT_EMBED_MODEL = "intfloat/multilingual-e5-large"
+EMBED_MODEL = os.getenv("STYLE_EMBED_MODEL", DEFAULT_EMBED_MODEL)
 
 _model: SentenceTransformer | None = None
 
@@ -16,7 +24,7 @@ _model: SentenceTransformer | None = None
 def _embedder() -> SentenceTransformer:
     global _model
     if _model is None:
-        _model = SentenceTransformer("BAAI/bge-large-en-v1.5")
+        _model = SentenceTransformer(EMBED_MODEL)
     return _model
 
 
