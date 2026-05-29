@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `from ml.* import`
 
-from ml._llm import chat, gather_with_concurrency  # noqa: E402
+from ml._llm import chat, extract_json as _extract_json, gather_with_concurrency  # noqa: E402
 
 INCOMING_PROMPT = """Generate {n} short, varied WhatsApp messages someone might send to a person matching this summary:
 
@@ -47,17 +47,6 @@ If, given the persona, the user genuinely would not respond at all, reply with e
 PERSONAS = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "personas.jsonl"
 HISTORIES = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "histories.jsonl"
 OUT = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "pairs.jsonl"
-
-
-def _extract_json(t: str) -> str:
-    t = t.strip()
-    if t.startswith("```"):
-        t = t.strip("`")
-        if "\n" in t:
-            t = t.split("\n", 1)[1]
-        if t.endswith("```"):
-            t = t[:-3]
-    return t.strip()
 
 
 async def gen_incomings(persona: dict, n: int) -> list[str]:

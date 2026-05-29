@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `from ml.* import`
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
-from ml._llm import chat, gather_with_concurrency  # noqa: E402
+from ml._llm import chat, extract_json as _extract_json, gather_with_concurrency  # noqa: E402
 
 PROMPT = """You are role-playing AS a specific WhatsApp user. Generate {n} natural WhatsApp messages this user would SEND to others.
 
@@ -31,17 +31,6 @@ Output strictly a JSON array of strings, no extra text. Example:
 
 PERSONAS = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "personas.jsonl"
 OUT = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "histories.jsonl"
-
-
-def _extract_json(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if "\n" in text:
-            text = text.split("\n", 1)[1]
-        if text.endswith("```"):
-            text = text[:-3]
-    return text.strip()
 
 
 async def gen_for(persona: dict, n: int) -> dict | None:

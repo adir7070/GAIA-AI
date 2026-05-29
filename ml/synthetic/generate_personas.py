@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `from ml.* import`
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
-from ml._llm import chat, gather_with_concurrency  # noqa: E402
+from ml._llm import chat, extract_json as _extract_json, gather_with_concurrency  # noqa: E402
 from ml.synthetic._diversity import sample_seed  # noqa: E402
 
 PROMPT = """You are a creative writer building a believable WhatsApp user persona.
@@ -54,17 +54,6 @@ async def make_one(seed: dict) -> dict | None:
         return None
     parsed["hidden_style"] = seed
     return parsed
-
-
-def _extract_json(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if "\n" in text:
-            text = text.split("\n", 1)[1]
-        if text.endswith("```"):
-            text = text[: -3]
-    return text.strip()
 
 
 async def main():

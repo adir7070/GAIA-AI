@@ -92,6 +92,45 @@ async def chat(
     return (r.choices[0].message.content or "").strip()
 
 
+def extract_json(text: str) -> str:
+    """Extract the first complete JSON array/object from an LLM response.
+
+    Strips ``` fences and any prose before/after the JSON, and stops at the
+    matching closing bracket — this tolerates the trailing junk that smaller
+    models often append (the "Extra data" JSONDecodeError).
+    """
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.strip("`")
+        if "\n" in t:
+            t = t.split("\n", 1)[1]
+    start = next((i for i, c in enumerate(t) if c in "[{"), None)
+    if start is None:
+        return t.strip()
+    open_ch = t[start]
+    close_ch = "]" if open_ch == "[" else "}"
+    depth = 0
+    in_str = esc = False
+    for j in range(start, len(t)):
+        c = t[j]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == open_ch:
+            depth += 1
+        elif c == close_ch:
+            depth -= 1
+            if depth == 0:
+                return t[start : j + 1]
+    return t[start:].strip()
+
+
 async def gather_with_concurrency(coros, n: int):
     sem = asyncio.Semaphore(n)
 

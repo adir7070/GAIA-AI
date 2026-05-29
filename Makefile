@@ -1,7 +1,7 @@
 .PHONY: help up down logs ps restart clean \
         dev-backend dev-frontend dev-bridge dev-worker \
         backend-shell migrate revision \
-        seed-synthetic build-dataset train eval \
+        seed-synthetic build-dataset train eval eda plots visuals slides notebooks \
         test lint format \
         install-backend install-frontend install-bridge install-ml install-all
 
@@ -95,6 +95,23 @@ train:
 
 eval:
 	cd ml && python -m eval.run_all
+
+eda:
+	cd ml && python -m eda.run_eda
+
+plots:
+	cd ml && python -m eval.plots
+
+# ----- Reporting artifacts (diagrams, notebooks, slide decks) --------------
+visuals:
+	python visuals/make_diagrams.py
+
+notebooks:
+	python ml/notebooks/_build_notebooks.py
+	jupyter nbconvert --to notebook --execute --inplace ml/notebooks/01_eda.ipynb ml/notebooks/02_results.ipynb
+
+slides:
+	python slides/build_slides.py
 
 # ----- Quality -------------------------------------------------------------
 test:

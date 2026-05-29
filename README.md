@@ -1,148 +1,142 @@
 # Gaia AI
 
-> Personalized conversational AI assistant that learns a user's WhatsApp writing style and suggests responses in that style — with human approval before sending.
+> **Personalized response generation via implicit user-style learning.**
+> Gaia AI learns a user's WhatsApp writing style from their own chat history and
+> **suggests** replies in that style — with the human always approving before sending.
 
-This is a **course project + startup-grade architecture**. It combines:
-- **Research**: implicit user-style learning via QLoRA fine-tuning on a synthetic dataset of 1000 users + a "Style Indistinguishability" evaluation (LLM judge ≈ 50% accuracy = success).
-- **Product**: full stack (FastAPI + Next.js + Node WhatsApp bridge + Postgres/Mongo/Qdrant/Redis).
+![Visual abstract](visuals/visual_abstract.png)
 
-The system **never auto-sends**. It only *suggests*; the human decides.
+This repository is the deliverable for the **LLM course (HIT)** project. It follows the
+course recipe: define a **novel, data-free task → generate synthetic data → fine-tune a
+model and compare it against off-the-shelf baselines → evaluate with a sound metric.**
 
 ---
 
-## Quickstart
+## 1 · Project motivation
+Communication-heavy people (educators, consultants, founders, support agents) get floods
+of messages whose replies follow a consistent **personal style**. Replying manually is slow;
+generic auto-replies sound nothing like the person. The problem is hard because a person's
+style is **implicit** (length, punctuation, emoji, slang, rhythm, greetings) and **no public
+labeled "style" dataset exists**. Gaia AI investigates whether an LLM can learn this implicit
+style and reproduce it well enough to be **indistinguishable** from the user.
 
+## 2 · Problem statement
+**Formal task:** conditional text generation with *implicit* style conditioning.
+- **Input:** a user's chat history `H = [m₁ … mₖ]` + a new incoming message `x`.
+- **Output:** a reply `ŷ` that (a) addresses `x` and (b) preserves the user's implicit style.
+- **Novelty:** style is learned *without labels*, and success is measured by
+  **Style-Indistinguishability** (an LLM judge → 50% accuracy = chance), not a soft score.
+
+## 3 · Visual abstract
+See [`visuals/visual_abstract.png`](visuals/visual_abstract.png) (above) and the
+[architecture](visuals/architecture.png) and [pipeline](visuals/pipeline.png) diagrams.
+
+## 4 · Datasets used or collected
+- **Synthetic (primary).** `__N_PERSONAS__` synthetic users, each with a **hidden** style seed
+  sampled from a 10-axis diversity matrix; an oracle LLM (which *does* see the seed) writes the
+  target replies → `__N_PAIRS__` `(history, incoming, target)` triples. Committed under
+  [`ml/data/synthetic/`](ml/data/synthetic/); see [`data/README.md`](data/README.md).
+- **Real (optional, evaluation only).** Opt-in, anonymized, AES-256-GCM encrypted, **gitignored**.
+- **Splits** are **per-user** (no user in both train and test) → tests generalization to unseen people.
+
+## 5 · Data augmentation & generation methods
+Self-Instruct-style synthetic generation in [`ml/synthetic/`](ml/synthetic/):
+1. [`_diversity.py`](ml/synthetic/_diversity.py) samples an orthogonal **style seed** per user
+   (language he/en × length × emoji × slang × formality × rhythm × punctuation × greeting × occupation × age).
+2. [`generate_personas.py`](ml/synthetic/generate_personas.py) → a persona that *adheres to but never reveals* the seed.
+3. [`generate_histories.py`](ml/synthetic/generate_histories.py) → ~20–50 style-reference messages per user.
+4. [`generate_pairs.py`](ml/synthetic/generate_pairs.py) → incoming messages + **oracle** target replies.
+
+Robustness: bracket-matching JSON extraction + per-item skip-on-error, and rate-limit-aware
+backoff so generation is reproducible on free API tiers.
+
+## 6 · Input / Output examples
+__IO_EXAMPLE__
+
+## 7 · Models and pipelines used
+| Step | Model / tool |
+|---|---|
+| Synthetic generation & LLM judge | Claude / GPT-4o / Groq Llama-3.x (via [`ml/_llm.py`](ml/_llm.py)) |
+| **Fine-tuned model** | `meta-llama/Meta-Llama-3-8B-Instruct` + **QLoRA** |
+| Off-the-shelf baselines | zero-shot & few-shot prompting (same base LLMs) |
+| Oracle (upper bound) | LLM that saw the hidden style seed |
+| Style-similarity embedder | `intfloat/multilingual-e5-large` (he+en) |
+
+Pipeline: `synthetic → dataset/build_jsonl → train/train_qlora → eval/run_all`
+(see [`visuals/pipeline.png`](visuals/pipeline.png) and [`docs/architecture.md`](docs/architecture.md)).
+
+## 8 · Training process and parameters
+QLoRA fine-tuning ([`ml/train/train_qlora.py`](ml/train/train_qlora.py), [`config.yaml`](ml/train/config.yaml)):
+- Base: Llama-3-8B-Instruct, **4-bit NF4** quantization, double-quant, bf16 compute.
+- LoRA: **r=16, α=32, dropout=0.05**, target modules `q/k/v/o_proj`.
+- 3 epochs, lr 2e-4 (cosine, warmup 0.03), effective batch 16 (4 × grad-accum 4), max-seq 2048.
+- Runs on a cloud GPU: `modal run ml/train/modal_app.py::main` or `bash ml/train/runpod_command.sh`.
+
+## 9 · Metrics
+1. **Style-Indistinguishability (headline).** An LLM judge sees history + incoming + two replies
+   (oracle vs. ours, randomized) and guesses the user's. **Target ≈ 50%** (chance) = indistinguishable.
+   Reported with 95% Wilson CI and an order-bias check; judge model separated from the generator.
+2. **Style similarity.** Cosine similarity in a **multilingual** embedding space vs. the user's history.
+3. **Relevance.** LLM 1–5: does the reply actually address the message? (guards against style-without-content).
+
+Full methodology: [`docs/evaluation.md`](docs/evaluation.md).
+
+## 10 · Results
+Off-the-shelf baselines were evaluated **for real** (Groq) on the held-out per-user test split.
+The **fine-tuned** arm requires a GPU run (see §8) — it is the core comparison and is marked accordingly.
+
+__RESULTS_TABLE__
+
+![Indistinguishability](visuals/results/indist_accuracy.png)
+
+Reproduce: `cd ml && python -m eval.run_all --models zero_shot,few_shot` →
+`ml/results/eval_report.{json,md,csv}`, then `python -m eval.plots` for the figures.
+Raw report: [`ml/results/eval_report.md`](ml/results/eval_report.md). EDA: [`results/eda_stats.json`](results/eda_stats.json).
+
+## 11 · Repository structure
+```
+gaia-ai/
+├── slides/        proposal · interim · final  (PPTX + PDF) + build_slides.py
+├── data/          data guide + curated sample (full synthetic data in ml/data/synthetic/)
+├── results/       eda_stats.json (eval report in ml/results/)
+├── visuals/       architecture · pipeline · visual_abstract · eda/ · results/  (+ make_diagrams.py)
+├── docs/          architecture · api · evaluation · prompts · proposal · related_work · deployment
+├── ml/            synthetic/ · dataset/ · train/ · inference/ · eval/ · eda/ · notebooks/
+├── backend/       FastAPI + Celery (product plane)
+├── frontend/      Next.js 14 dashboard
+├── whatsapp-bridge/  Node whatsapp-web.js bridge
+└── infra/         Postgres init, Qdrant config
+```
+
+## 12 · Team Members
+- **Adir** — sole author (project design, data generation, fine-tuning pipeline, evaluation, write-up).
+
+---
+
+## Quickstart (research pipeline)
 ```bash
-# 1. Copy env template
-cp .env.example .env
-# (edit .env: at minimum fill JWT_SECRET, AES_KEY, BRIDGE_SECRET, ANTHROPIC_API_KEY or OPENAI_API_KEY)
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -e ml                       # or: pip install anthropic openai tenacity python-dotenv numpy pandas sentence-transformers matplotlib python-pptx nbformat nbconvert jupyter
+cp .env.example .env                     # set LLM_PROVIDER + an API key (Groq/OpenAI/Anthropic)
 
-# 2. Bring up all services
-make up
-
-# 3. Run database migrations
-make migrate
-
-# 4. Open the app
-open http://localhost:3000           # frontend
-open http://localhost:8000/docs      # backend OpenAPI
+cd ml
+python -m synthetic.generate_personas  --n 30
+python -m synthetic.generate_histories --n-messages 20
+python -m synthetic.generate_pairs     --pairs-per-user 8
+python -m dataset.build_jsonl
+python -m eda.run_eda                   # EDA figures + ../results/eda_stats.json
+python -m eval.run_all --models zero_shot,few_shot   # baselines (no GPU)
+python -m eval.plots                    # result figures
+# then, on a GPU: train QLoRA and re-run eval with GAIA_LORA_ADAPTER set for the fine_tuned column
 ```
+Build the reporting artifacts: `make visuals && make slides && make notebooks` (or the scripts directly).
 
-### What's running
-
-| Service          | Port  | Purpose                                        |
-|------------------|-------|------------------------------------------------|
-| frontend         | 3000  | Next.js 14 dashboard (RTL, Hebrew/English)     |
-| backend          | 8000  | FastAPI (REST + WebSocket)                     |
-| whatsapp-bridge  | 4000  | Node.js whatsapp-web.js bridge                 |
-| postgres         | 5432  | Users, sessions, contacts, feedback            |
-| mongo            | 27017 | Raw messages, training samples, AI outputs     |
-| qdrant           | 6333  | Style/semantic embeddings                      |
-| redis            | 6379  | Celery queue + cache                           |
-
----
-
-## Repository Layout
-
-```
-backend/             FastAPI service + Celery workers
-whatsapp-bridge/     Node.js whatsapp-web.js bridge
-frontend/            Next.js 14 app (App Router, Tailwind)
-ml/                  Synthetic data, training, evaluation
-infra/               Postgres init.sql, Qdrant config
-docs/                Architecture, API, prompts, evaluation, deployment
-```
-
----
-
-## End-to-End User Flow (MVP)
-
-1. User registers → logs in.
-2. Visits `/connect` → sees WhatsApp QR → scans with their phone.
-3. Backend pulls last ~1000 messages, embeds them into Qdrant, builds style memory.
-4. User picks which contacts/groups the assistant is allowed to suggest replies for (`/permissions`).
-5. New incoming message → backend pulls top-k similar history → builds prompt → LLM suggests a response.
-6. Frontend dashboard shows the suggestion with a confidence badge.
-7. User clicks **Approve / Edit / Skip**. Edits become future training signal.
-
----
-
-## Research Pipeline
-
-```bash
-# 1. Generate 1000 synthetic users with hidden styles
-make seed-synthetic n=1000
-
-# 2. Build train/val/test jsonl
-make build-dataset
-
-# 3. Fine-tune (run on RunPod / Modal — script is GPU-aware)
-make train
-
-# 4. Run evaluation: zero-shot vs few-shot vs fine-tuned
-#    Output: results/eval_report.json + results/eval_report.md
-make eval
-```
-
-The headline metric is **Style Indistinguishability**:
-
-> An LLM judge sees the user's history + an incoming message + two responses (one from the oracle, one from our model) and must guess which one is "real". Target accuracy: ~50% (random) — meaning the model successfully imitates the user's style.
-
-See [docs/evaluation.md](docs/evaluation.md) for the full methodology.
-
----
-
-## Stack
-
-- **Backend**: Python 3.11, FastAPI, SQLAlchemy 2 (async), Motor, qdrant-client, Celery, anthropic + openai SDK.
-- **Frontend**: Next.js 14 (App Router), TypeScript, TailwindCSS, Zustand, socket.io-client.
-- **Bridge**: Node.js 20, whatsapp-web.js, Express, Socket.IO, qrcode.
-- **ML**: transformers, peft, trl, bitsandbytes, accelerate, sentence-transformers.
-- **Infra**: Docker Compose for local; Postgres 16, MongoDB 7, Qdrant, Redis 7.
-
----
+The full product stack (FastAPI + Next.js + WhatsApp bridge + Postgres/Mongo/Qdrant/Redis) runs via
+`make up`; it **never auto-sends** — it only suggests, and the human approves.
 
 ## Privacy & Consent
-
-- Real WhatsApp data is **only** used with explicit per-user opt-in (see `/permissions` page and the consent terms shown at first connect).
-- Messages are encrypted at rest with AES-256-GCM (`AES_KEY` in `.env`).
-- Real-data folders (`ml/data/real/`) are gitignored.
-- Users can export (`GET /me/export`) or delete (`DELETE /me/data`) at any time.
-
-For research purposes the **primary** dataset is synthetic (1000 users); real data is used **only for evaluation/generalization**.
-
----
-
-## Development
-
-See `make help` for all commands.
-
-Common workflows:
-
-```bash
-make dev-backend       # Run FastAPI with hot reload (outside docker)
-make dev-frontend      # Run Next.js with hot reload
-make dev-bridge        # Run WhatsApp bridge with nodemon
-
-make test              # Run backend tests
-make lint              # Lint backend + frontend
-make migrate           # Apply DB migrations
-make revision m="msg"  # Create new migration
-```
-
----
-
-## Documentation
-
-- [docs/architecture.md](docs/architecture.md) — System architecture
-- [docs/api.md](docs/api.md) — API contracts
-- [docs/prompts.md](docs/prompts.md) — All LLM prompts
-- [docs/evaluation.md](docs/evaluation.md) — Research methodology
-- [docs/deployment.md](docs/deployment.md) — Production deployment notes
-- [docs/proposal.md](docs/proposal.md) — Course project proposal (EN + HE)
-
----
+Real WhatsApp data is used **only** with explicit per-user opt-in, encrypted at rest (AES-256-GCM),
+and is **gitignored**. The primary dataset is **synthetic**; real data (if any) is evaluation-only.
 
 ## License
-
-Educational / research use. WhatsApp Web automation is unofficial — review the WhatsApp ToS before any production deployment.
+Educational / research use. WhatsApp Web automation is unofficial — review WhatsApp's ToS before any production use.
