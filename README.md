@@ -32,10 +32,12 @@ See [`visuals/visual_abstract.png`](visuals/visual_abstract.png) (above) and the
 [architecture](visuals/architecture.png) and [pipeline](visuals/pipeline.png) diagrams.
 
 ## 4 · Datasets used or collected
-- **Synthetic (primary).** `__N_PERSONAS__` synthetic users, each with a **hidden** style seed
-  sampled from a 10-axis diversity matrix; an oracle LLM (which *does* see the seed) writes the
-  target replies → `__N_PAIRS__` `(history, incoming, target)` triples. Committed under
-  [`ml/data/synthetic/`](ml/data/synthetic/); see [`data/README.md`](data/README.md).
+- **Synthetic (primary).** **30** synthetic users (22 with full histories after generation),
+  each with a **hidden** style seed sampled from a 10-axis diversity matrix; an oracle LLM
+  (which *does* see the seed) writes the target replies → **170** `(history, incoming, target)`
+  triples, split per-user into **136 / 16 / 18** (train / val / test). Committed under
+  [`ml/data/synthetic/`](ml/data/synthetic/); see [`data/README.md`](data/README.md). Language
+  mix ≈ 16 he / 14 en; full distributions in [`results/eda_stats.json`](results/eda_stats.json).
 - **Real (optional, evaluation only).** Opt-in, anonymized, AES-256-GCM encrypted, **gitignored**.
 - **Splits** are **per-user** (no user in both train and test) → tests generalization to unseen people.
 
@@ -51,7 +53,18 @@ Robustness: bracket-matching JSON extraction + per-item skip-on-error, and rate-
 backoff so generation is reproducible on free API tiers.
 
 ## 6 · Input / Output examples
-__IO_EXAMPLE__
+
+Real samples from [`ml/data/synthetic/pairs.jsonl`](ml/data/synthetic/pairs.jsonl) (targets written by the oracle; the model must *produce* the style, not copy history):
+
+**English user — casual + emoji:**
+- History: `"Who's down for brunch this weekend? 🍳"`, `"Hey fam, hope u're all doing well ❤️"`
+- Incoming: `"Hey, what's up for the weekend?"`
+- **Output:** `"Hey, I'm thinking brunch sounds 👌"`
+
+**Hebrew user — very short / casual:**
+- History: `"שקד!"`, `"אתה מדבר על הספר שלך? 🤓"`
+- Incoming: `"Free tonight, want to catch a new movie?"`
+- **Output:** `"אני חושב שאני רוצה לצאת הלילה"`
 
 ## 7 · Models and pipelines used
 | Step | Model / tool |

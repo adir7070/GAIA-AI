@@ -1,0 +1,58 @@
+{
+  "n_personas": 30,
+  "n_histories": 22,
+  "n_pairs": 170,
+  "style_axes": {
+    "language": {
+      "he": 16,
+      "en": 14
+    },
+    "avg_length": {
+      "very_short": 12,
+      "short": 10,
+      "long": 5,
+      "medium": 3
+    },
+    "emoji": {
+      "frequent": 6,
+      "none": 8,
+      "heavy": 7,
+      "sparse": 9
+    },
+    "slang": {
+      "none": 14,
+      "heavy": 8,
+      "some": 8
+    },
+    "formality": {
+      "casual": 11,
+      "neutral": 7,
+      "very_casual": 7,
+      "formal": 5
+    },
+    "rhythm": {
+      "single": 14,
+      "mixed": 5,
+      "multi": 11
+    }
+  },
+  "history_msg_len_chars": {
+    "mean": 39.5,
+    "median": 39,
+    "min": 1,
+    "max": 123,
+    "n_messages": 461
+  },
+  "target_len_chars": {
+    "mean": 50.2,
+    "median": 41.0,
+    "min": 1,
+    "max": 213
+  },
+  "pairs_per_user": {
+    "mean": 8.1,
+    "min": 8,
+    "max": 10,
+    "n_users_with_pairs": 21
+  }
+}
