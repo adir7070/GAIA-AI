@@ -22,7 +22,12 @@ import os
 import random
 from dataclasses import dataclass, field
 
-from ml._llm import chat
+from ml._llm import chat, gather_with_concurrency
+
+# Cap concurrent judge calls — free API tiers enforce a low tokens-per-minute
+# limit, so firing every judgment at once just triggers mass rate-limit backoff
+# (slower overall). Override with EVAL_CONCURRENCY.
+_EVAL_CONCURRENCY = int(os.getenv("EVAL_CONCURRENCY", "3"))
 
 JUDGE_PROMPT = """You are an expert judge of personal WhatsApp writing style.
 
@@ -141,7 +146,7 @@ async def run(samples: list[dict]) -> TrialResult:
             )
 
     rng.shuffle(samples)
-    await asyncio.gather(*[one(s) for s in samples])
+    await gather_with_concurrency([one(s) for s in samples], _EVAL_CONCURRENCY)
     return res
 
 
