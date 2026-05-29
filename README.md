@@ -98,7 +98,13 @@ Full methodology: [`docs/evaluation.md`](docs/evaluation.md).
 Off-the-shelf baselines were evaluated **for real** (Groq) on the held-out per-user test split.
 The **fine-tuned** arm requires a GPU run (see §8) — it is the core comparison and is marked accordingly.
 
-__RESULTS_TABLE__
+| Model | Indistinguishability acc (→ 50% = better) | 95% CI | Style sim | Relevance (1–5) |
+|---|---|---|---|---|
+| zero_shot (off-the-shelf) | 41.7% | [27.1%, 57.8%] | 0.905 | 3.39 |
+| few_shot (off-the-shelf) | 52.8% | [37.0%, 68.0%] | 0.902 | 3.56 |
+| **fine_tuned (QLoRA)** | **pending GPU run** | — | — | — |
+
+*Test size = 18 (held-out per-user split). Both baselines sit near the 50% chance line (their 95% CIs straddle it), i.e. even off-the-shelf prompting is hard to distinguish from the oracle on this small synthetic set — which makes the **fine-tuned vs. off-the-shelf** comparison the decisive experiment. Free-tier note: the judge here is Llama-3.1-8B (the 70B daily-token budget was exhausted); a stronger separate judge (70B / GPT-4o) is recommended for the final run, and a larger test set will tighten the wide CIs.*
 
 ![Indistinguishability](visuals/results/indist_accuracy.png)
 

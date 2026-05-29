@@ -38,7 +38,7 @@ def indist_plot(rep):
     acc = [rep["results"][m]["indistinguishability"]["accuracy"] * 100 for m in models]
     lo = [rep["results"][m]["indistinguishability"]["ci95_low"] * 100 for m in models]
     hi = [rep["results"][m]["indistinguishability"]["ci95_high"] * 100 for m in models]
-    err = [[a - l for a, l in zip(acc, lo)], [h - a for a, h in zip(hi, acc)]]
+    err = [[a - l for a, l in zip(acc, lo)], [h - a for h, a in zip(hi, acc)]]
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
     bars = ax.bar(models, acc, yerr=err, capsize=6,

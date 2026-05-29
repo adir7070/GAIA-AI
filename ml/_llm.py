@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from typing import Literal
 
 from anthropic import AsyncAnthropic
@@ -54,10 +55,28 @@ def _gclient() -> AsyncOpenAI:
     return _groq
 
 
-# Generous, JITTERED backoff: free Groq tiers enforce low requests-per-minute and
-# tokens-per-minute limits. Jitter de-correlates concurrent retries (otherwise they
-# wake together and re-collide); many attempts let a call ride through several
-# per-minute windows instead of giving up.
+# Deterministic global rate limiter: free Groq tiers cap requests-per-minute
+# (~30 RPM). Pacing the START of every request to a minimum interval keeps us
+# under the ceiling so we (almost) never trigger a 429 in the first place —
+# far more reliable than relying on retry/backoff, which becomes a retry storm.
+# Set LLM_MIN_INTERVAL_S (e.g. 2.2 → ~27 RPM) to enable.
+_MIN_INTERVAL = float(os.getenv("LLM_MIN_INTERVAL_S", "0"))
+_rate_lock = asyncio.Lock()
+_last_call_t = 0.0
+
+
+async def _throttle() -> None:
+    if _MIN_INTERVAL <= 0:
+        return
+    global _last_call_t
+    async with _rate_lock:
+        wait = _MIN_INTERVAL - (time.monotonic() - _last_call_t)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        _last_call_t = time.monotonic()
+
+
+# Jittered backoff as a SECOND line of defense if a 429 still slips through.
 @retry(stop=stop_after_attempt(12), wait=wait_random_exponential(multiplier=2, max=60))
 async def chat(
     prompt: str,
@@ -68,6 +87,7 @@ async def chat(
     provider: Provider | None = None,
     model: str | None = None,
 ) -> str:
+    await _throttle()
     p: Provider = provider or PROVIDER
     if p == "anthropic":
         msg = await _aclient().messages.create(

@@ -1,0 +1,48 @@
+{
+  "created_at": "2026-05-29T09:31:34.041062+00:00",
+  "test_size": 18,
+  "results": {
+    "zero_shot": {
+      "indistinguishability": {
+        "accuracy": 0.4166666666666667,
+        "ci95_low": 0.27140333505087283,
+        "ci95_high": 0.5780003033572232,
+        "total": 36,
+        "correct": 15,
+        "oracle_first_acc": 0.5555555555555556,
+        "oracle_second_acc": 0.2777777777777778
+      },
+      "style_similarity": {
+        "mean": 0.9050201078255972,
+        "std": 0.011743526170039821,
+        "n": 18
+      },
+      "relevance": {
+        "mean": 3.388888888888889,
+        "std": 1.339107865910439,
+        "n": 18
+      }
+    },
+    "few_shot": {
+      "indistinguishability": {
+        "accuracy": 0.5277777777777778,
+        "ci95_low": 0.3700567162693947,
+        "ci95_high": 0.6801420709279067,
+        "total": 36,
+        "correct": 19,
+        "oracle_first_acc": 0.6666666666666666,
+        "oracle_second_acc": 0.3888888888888889
+      },
+      "style_similarity": {
+        "mean": 0.901531394984987,
+        "std": 0.02032787952318698,
+        "n": 18
+      },
+      "relevance": {
+        "mean": 3.5555555555555554,
+        "std": 1.4229164972072996,
+        "n": 18
+      }
+    }
+  }
+}

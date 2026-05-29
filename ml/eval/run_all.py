@@ -165,7 +165,7 @@ def _to_markdown(report: dict) -> str:
     lines.append("## Interpretation")
     lines.append("")
     lines.append("- **Indistinguishability accuracy ≈ 50%** = the LLM judge cannot reliably tell our model's responses from the oracle's; this is the SUCCESS condition (per spec §33 and lecturer feedback).")
-    lines.append("- **Style similarity** (cosine in BGE space) is a complementary metric; higher is stylistically closer to the user.")
+    lines.append("- **Style similarity** (cosine in a multilingual embedding space) is a complementary metric; higher is stylistically closer to the user.")
     lines.append("- **Relevance** ensures the response actually addresses the message (style without content is not useful).")
     return "\n".join(lines)
 
