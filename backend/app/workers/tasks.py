@@ -107,11 +107,14 @@ def handle_incoming_message(user_id: int, message: dict) -> None:
         if not contact.allowed:
             return
 
+        from app.services.style_profile import get_profile
+
         similar = await retrieve_similar(user_id=user_id, query=text, top_k=12)
         prompt = build_runtime_prompt(
             similar_history=[s["text"] for s in similar],
             recent_turns=[],
             incoming_message=text,
+            style_profile=await get_profile(user_id),
         )
         suggestion = await generate_text(prompt, max_tokens=512, temperature=0.6)
         confidence, label = score_confidence(suggestion=suggestion, similar=similar)

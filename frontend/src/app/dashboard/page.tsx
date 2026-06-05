@@ -14,6 +14,8 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">לוח הצעות</h1>
         <nav className="flex gap-2 text-sm">
+          <Link href="/connect" className="btn-primary">חבר WhatsApp</Link>
+          <Link href="/profile" className="btn-ghost">הפרופיל שלי</Link>
           <Link href="/permissions" className="btn-ghost">הרשאות</Link>
           <Link href="/learn" className="btn-ghost">לימוד</Link>
           <Link href="/analytics" className="btn-ghost">סטטיסטיקות</Link>

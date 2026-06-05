@@ -13,6 +13,7 @@ from app.api import auth as auth_routes
 from app.api import contacts as contacts_routes
 from app.api import me as me_routes
 from app.api import messages as messages_routes
+from app.api import profile as profile_routes
 from app.api import whatsapp as whatsapp_routes
 from app.api import ws as ws_routes
 from app.core.config import settings
@@ -65,4 +66,5 @@ app.include_router(messages_routes.router)
 app.include_router(ai_routes.router)
 app.include_router(analytics_routes.router)
 app.include_router(me_routes.router)
+app.include_router(profile_routes.router)
 app.include_router(ws_routes.router)

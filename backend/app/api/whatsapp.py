@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -93,6 +93,7 @@ async def disconnect(user_id: int = Depends(get_current_user_id)):
 @router.post("/internal/event", include_in_schema=False)
 async def bridge_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_bridge_signature: str = Header(default=""),
 ):
     body = await request.body()
@@ -100,6 +101,12 @@ async def bridge_webhook(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "bad signature")
 
     event = WebhookEvent(**json.loads(body))
+
+    if event.type == "ready":
+        # Session linked → import the user's contacts so /permissions populates.
+        from app.services.contacts_sync import sync_user_contacts
+
+        background_tasks.add_task(sync_user_contacts, event.user_id)
 
     if event.type == "message":
         from app.workers.tasks import handle_incoming_message  # local import to avoid cycle

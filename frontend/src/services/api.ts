@@ -25,6 +25,17 @@ api.interceptors.response.use(
   }
 );
 
+// ----- Error helper --------------------------------------------------------
+// FastAPI returns `detail` as a string (HTTPException) OR an array of objects
+// (422 validation). Rendering the raw object crashes React, so normalize to text.
+export function errMessage(ex: any, fallback = 'שגיאה'): string {
+  const d = ex?.response?.data?.detail;
+  if (typeof d === 'string') return d;
+  if (Array.isArray(d)) return d.map((e) => e?.msg || JSON.stringify(e)).join('; ');
+  if (d && typeof d === 'object') return d.msg || JSON.stringify(d);
+  return ex?.message || fallback;
+}
+
 // ----- Endpoints -----------------------------------------------------------
 export type UserOut = { id: number; email: string; display_name?: string | null };
 
@@ -54,6 +65,10 @@ export async function listContacts() {
   const r = await api.get('/contacts');
   return r.data as Contact[];
 }
+export async function syncContacts() {
+  const r = await api.post('/contacts/sync');
+  return r.data as Contact[];
+}
 export async function patchContact(id: number, body: Partial<Contact>) {
   const r = await api.patch(`/contacts/${id}`, body);
   return r.data as Contact;
@@ -79,4 +94,36 @@ export async function sendMessage(contact_id: number, text: string) {
 export async function analyticsSummary() {
   const r = await api.get('/analytics/summary');
   return r.data;
+}
+
+// ----- Style profile (how the model understands you) -----------------------
+export type StyleTraits = {
+  tone?: string;
+  formality?: string;
+  typical_length?: string;
+  emoji_usage?: string;
+  slang?: string;
+  punctuation?: string;
+  languages?: string[];
+  personality?: string[];
+  common_phrases?: string[];
+};
+export type StyleProfile = {
+  summary: string;
+  traits: StyleTraits;
+  edited?: boolean;
+  updated_at?: string;
+};
+
+export async function getStyleProfile() {
+  const r = await api.get('/style-profile');
+  return r.data as { profile: StyleProfile | null; message_count: number };
+}
+export async function analyzeStyleProfile() {
+  const r = await api.post('/style-profile/analyze');
+  return r.data as { profile: StyleProfile };
+}
+export async function saveStyleProfile(summary: string, traits: StyleTraits) {
+  const r = await api.put('/style-profile', { summary, traits });
+  return r.data as { profile: StyleProfile };
 }

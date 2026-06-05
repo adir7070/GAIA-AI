@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { register } from '@/services/api';
+import { errMessage, register } from '@/services/api';
 import { useAuth } from '@/store/authStore';
 
 export default function RegisterPage() {
@@ -24,7 +24,7 @@ export default function RegisterPage() {
       setAuth(r.token, r.user);
       router.push('/connect');
     } catch (ex: any) {
-      setErr(ex?.response?.data?.detail || 'הרשמה נכשלה');
+      setErr(errMessage(ex, 'הרשמה נכשלה'));
     } finally {
       setBusy(false);
     }

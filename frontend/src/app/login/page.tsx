@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { login } from '@/services/api';
+import { errMessage, login } from '@/services/api';
 import { useAuth } from '@/store/authStore';
 
 export default function LoginPage() {
@@ -23,7 +23,7 @@ export default function LoginPage() {
       setAuth(r.token, r.user);
       router.push('/dashboard');
     } catch (ex: any) {
-      setErr(ex?.response?.data?.detail || 'התחברות נכשלה');
+      setErr(errMessage(ex, 'התחברות נכשלה'));
     } finally {
       setBusy(false);
     }

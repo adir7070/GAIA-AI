@@ -42,10 +42,13 @@ async def generate(
     similar = await retrieve_similar(user_id=user_id, query=body.incoming_message, top_k=12)
     recent = await _recent_turns(user_id, contact.id, n=8)
 
+    from app.services.style_profile import get_profile
+
     prompt = build_runtime_prompt(
         similar_history=[s["text"] for s in similar],
         recent_turns=recent,
         incoming_message=body.incoming_message,
+        style_profile=await get_profile(user_id),
     )
     suggestion = await generate_text(prompt, max_tokens=512, temperature=0.6)
     confidence, label = score_confidence(suggestion=suggestion, similar=similar)

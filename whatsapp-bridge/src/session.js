@@ -3,21 +3,50 @@
  * Sessions persist across restarts via LocalAuth on `.wwebjs_auth/`.
  */
 
+const fs = require('fs');
+const path = require('path');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const QRCode = require('qrcode');
 const { sendWebhook } = require('./events');
 
 const clients = new Map(); // userId -> { client, status, qr }
+const AUTH_PATH = '.wwebjs_auth';
 
 function _exec() {
   // In docker we install chromium and point puppeteer at it.
   return process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
 }
 
+/**
+ * Remove stale Chromium Singleton* lock files left behind when a previous
+ * Chromium process for this user did not shut down cleanly (crash/restart).
+ * Without this, a fresh launch fails with "profile appears to be in use by
+ * another Chromium process" (Code: 21).
+ */
+function clearStaleLocks(userId) {
+  const dir = path.join(AUTH_PATH, `session-${String(userId)}`);
+  try {
+    if (!fs.existsSync(dir)) return;
+    for (const name of fs.readdirSync(dir)) {
+      if (name.startsWith('Singleton')) {
+        try {
+          fs.rmSync(path.join(dir, name), { force: true, recursive: true });
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    }
+    console.log(`[bridge] cleared stale locks for user=${userId}`);
+  } catch (err) {
+    console.error(`[bridge] clearStaleLocks error for user=${userId}:`, err.message);
+  }
+}
+
 async function start(userId) {
   if (clients.has(userId)) {
     return clients.get(userId);
   }
+  clearStaleLocks(userId);
   const session = {
     userId,
     status: 'pending',

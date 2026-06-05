@@ -1,50 +1,48 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getQr, startWhatsApp } from '@/services/api';
+import { errMessage, getQr, startWhatsApp } from '@/services/api';
 
 export default function ConnectPage() {
   const router = useRouter();
   const [qr, setQr] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('starting');
   const [err, setErr] = useState<string | null>(null);
-  const polled = useRef(false);
 
   useEffect(() => {
-    if (polled.current) return;
-    polled.current = true;
-
-    let done = false;
+    // StrictMode-safe: each effect run owns its own `cancelled` flag, and its
+    // cleanup cancels only its own loop — so a fresh run always re-polls.
+    let cancelled = false;
 
     (async () => {
       try {
         await startWhatsApp();
       } catch (e: any) {
-        setErr(e?.response?.data?.detail || 'נכשל התחלת חיבור');
+        if (!cancelled) setErr(errMessage(e, 'נכשל התחלת חיבור'));
         return;
       }
       const tick = async () => {
-        if (done) return;
+        if (cancelled) return;
         try {
           const r = await getQr();
+          if (cancelled) return;
           setQr(r.qr_base64);
           setStatus(r.status);
           if (r.status === 'ready') {
-            done = true;
             router.push('/dashboard');
             return;
           }
-        } catch (e: any) {
+        } catch {
           /* keep polling */
         }
-        setTimeout(tick, 2000);
+        if (!cancelled) setTimeout(tick, 2000);
       };
       tick();
     })();
 
     return () => {
-      done = true;
+      cancelled = true;
     };
   }, [router]);
 
