@@ -33,3 +33,18 @@ async def ensure_user_collection(user_id: int, dim: int | None = None) -> None:
             collection_name=col,
             vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
         )
+
+
+async def reset_user_collection(user_id: int, dim: int | None = None) -> None:
+    """Delete and recreate the user's collection — used to re-embed from scratch
+    (also handles an embedding-dimension change)."""
+    client = get_qdrant()
+    col = user_collection(user_id)
+    try:
+        await client.delete_collection(collection_name=col)
+    except Exception:  # noqa: BLE001 - may not exist yet
+        pass
+    await client.create_collection(
+        collection_name=col,
+        vectors_config=VectorParams(size=dim or settings.EMBEDDING_DIM, distance=Distance.COSINE),
+    )

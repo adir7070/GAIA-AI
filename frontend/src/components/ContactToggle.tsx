@@ -4,15 +4,21 @@ import { useState } from 'react';
 import type { Contact } from '@/services/api';
 import { patchContact } from '@/services/api';
 
-export default function ContactToggle({ c, onChange }: { c: Contact; onChange?: (c: Contact) => void }) {
-  const [allowed, setAllowed] = useState(c.allowed);
+// Controlled: reads `allowed` from the `c` prop so bulk actions (allow-all)
+// and re-fetches are reflected immediately.
+export default function ContactToggle({
+  c,
+  onChange,
+}: {
+  c: Contact;
+  onChange?: (c: Contact) => void;
+}) {
   const [busy, setBusy] = useState(false);
 
   const toggle = async () => {
     setBusy(true);
     try {
-      const updated = await patchContact(c.id, { allowed: !allowed });
-      setAllowed(updated.allowed);
+      const updated = await patchContact(c.id, { allowed: !c.allowed });
       onChange?.(updated);
     } finally {
       setBusy(false);
@@ -30,9 +36,9 @@ export default function ContactToggle({ c, onChange }: { c: Contact; onChange?: 
       <button
         disabled={busy}
         onClick={toggle}
-        className={`btn ${allowed ? 'bg-brand-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+        className={`btn ${c.allowed ? 'bg-brand-600 text-white' : 'bg-gray-200 text-gray-700'}`}
       >
-        {allowed ? 'מופעל' : 'כבוי'}
+        {busy ? '…' : c.allowed ? 'מופעל' : 'כבוי'}
       </button>
     </div>
   );

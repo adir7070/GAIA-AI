@@ -47,8 +47,10 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:3000"
 
-    EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
-    EMBEDDING_DIM: int = 1024
+    # Multilingual embedder — the data is bilingual (Hebrew + English); an
+    # English-only model gives near-random retrieval on Hebrew.
+    EMBEDDING_MODEL: str = "intfloat/multilingual-e5-small"
+    EMBEDDING_DIM: int = 384
 
     HISTORY_TOP_K: int = 12
     RECENT_TURNS: int = 8

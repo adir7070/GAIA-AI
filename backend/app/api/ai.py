@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,6 +74,35 @@ async def generate(
         confidence=confidence,
         label=label,
     )
+
+
+class TestRequest(BaseModel):
+    incoming_message: str
+
+
+@router.post("/test")
+async def test_generate(
+    body: TestRequest, user_id: int = Depends(get_current_user_id)
+) -> dict:
+    """Playground: generate a reply in the user's style for any message, no contact
+    needed. Lets the user 'chat with themselves' to evaluate the model."""
+    from app.services.style_profile import get_profile
+
+    similar = await retrieve_similar(user_id=user_id, query=body.incoming_message, top_k=12)
+    prompt = build_runtime_prompt(
+        similar_history=[s["text"] for s in similar],
+        recent_turns=[],
+        incoming_message=body.incoming_message,
+        style_profile=await get_profile(user_id),
+    )
+    suggestion = await generate_text(prompt, max_tokens=512, temperature=0.6)
+    # Evidence: the user's own messages that most influenced this reply.
+    sources = [
+        {"text": s.get("text", ""), "score": round(float(s.get("score", 0)), 3)}
+        for s in similar[:6]
+        if s.get("text")
+    ]
+    return {"suggestion": suggestion, "used_history": len(similar), "sources": sources}
 
 
 @router.post("/feedback", response_model=FeedbackResponse)

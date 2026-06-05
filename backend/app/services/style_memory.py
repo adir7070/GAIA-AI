@@ -40,10 +40,14 @@ async def retrieve_similar(user_id: int, query: str, top_k: int = 12) -> list[di
     await ensure_user_collection(user_id)
     qvec = await embed(query)
     qdr = get_qdrant()
-    res = await qdr.search(
+    # qdrant-client >=1.10 replaced .search() with .query_points()
+    res = await qdr.query_points(
         collection_name=user_collection(user_id),
-        query_vector=qvec,
+        query=qvec,
         limit=top_k,
         with_payload=True,
     )
-    return [{"text": r.payload.get("text", ""), "score": r.score, **r.payload} for r in res]
+    return [
+        {"text": (p.payload or {}).get("text", ""), "score": p.score, **(p.payload or {})}
+        for p in res.points
+    ]

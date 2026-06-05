@@ -27,48 +27,9 @@ def embed_messages(user_id: int, messages: list[dict]) -> int:
 @celery_app.task(name="gaia.import_history")
 def import_history(user_id: int, contact_wa_id: str, limit: int = 1000) -> dict:
     """Pull last N messages for a contact from the bridge, store in Mongo + Qdrant."""
-    import httpx
+    from app.services.history_import import import_contact_history
 
-    from app.core.config import settings
-    from app.db.mongo import get_mongo
-    from app.services.style_memory import add_messages
-
-    async def _go():
-        async with httpx.AsyncClient(base_url=settings.WHATSAPP_BRIDGE_URL, timeout=120.0) as cli:
-            r = await cli.get(
-                f"/sessions/{user_id}/history",
-                params={"contact_id": contact_wa_id, "limit": limit},
-            )
-            r.raise_for_status()
-            history = r.json().get("messages", [])
-        if not history:
-            return {"saved": 0}
-
-        mongo = get_mongo()
-        docs = []
-        for m in history:
-            docs.append(
-                {
-                    "user_id": user_id,
-                    "wa_id": m.get("from"),
-                    "contact_id": None,  # backfilled when contact resolved
-                    "direction": m.get("direction", "in"),
-                    "text": m.get("text"),
-                    "ts": m.get("ts"),
-                    "meta": m.get("meta", {}),
-                }
-            )
-        await mongo.messages.insert_many(docs)
-
-        # Only embed user-authored ("out") messages for style learning
-        own = [d for d in docs if d.get("direction") == "out" and d.get("text")]
-        added = await add_messages(
-            user_id,
-            [{"id": str(uuid.uuid4()), "text": d["text"], "ts": d.get("ts"), "wa_id": d.get("wa_id"), "direction": "out"} for d in own],
-        )
-        return {"saved": len(docs), "embedded": added}
-
-    return _run(_go())
+    return _run(import_contact_history(user_id, contact_wa_id, limit))
 
 
 # ----- Generate suggestion (called from webhook) ---------------------------

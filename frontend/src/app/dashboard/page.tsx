@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useGaiaSocket } from '@/hooks/useSocket';
 import SuggestionCard from '@/components/SuggestionCard';
 import { useSuggestions } from '@/store/suggestionsStore';
@@ -11,17 +10,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen px-4 py-6 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">לוח הצעות</h1>
-        <nav className="flex gap-2 text-sm">
-          <Link href="/connect" className="btn-primary">חבר WhatsApp</Link>
-          <Link href="/profile" className="btn-ghost">הפרופיל שלי</Link>
-          <Link href="/permissions" className="btn-ghost">הרשאות</Link>
-          <Link href="/learn" className="btn-ghost">לימוד</Link>
-          <Link href="/analytics" className="btn-ghost">סטטיסטיקות</Link>
-          <Link href="/settings" className="btn-ghost">הגדרות</Link>
-        </nav>
-      </div>
+      <h1 className="text-2xl font-bold mb-4">לוח הצעות</h1>
 
       {items.length === 0 ? (
         <div className="card text-center text-gray-500">

@@ -16,6 +16,12 @@ def _format_profile(profile: dict | None) -> str:
             continue
         val = ", ".join(str(x) for x in v) if isinstance(v, list) else str(v)
         parts.append(f"{k}: {val}")
+    biz = profile.get("business") or {}
+    if biz.get("name") or biz.get("description"):
+        blines = [f"{k}: {v}" for k, v in biz.items() if v and k != "has_business"]
+        if blines:
+            parts.append("BUSINESS CONTEXT (reply consistently with this when relevant):")
+            parts.extend(blines)
     return "\n".join(parts)
 
 

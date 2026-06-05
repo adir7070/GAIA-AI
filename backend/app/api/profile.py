@@ -9,6 +9,7 @@ from app.services.style_profile import (
     analyze_style,
     count_out_messages,
     get_profile,
+    resync_and_analyze,
     save_profile,
 )
 
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/style-profile", tags=["style-profile"])
 class ProfileIn(BaseModel):
     summary: str
     traits: dict
+    business: dict | None = None
 
 
 @router.get("")
@@ -42,7 +44,28 @@ async def analyze(user_id: int = Depends(get_current_user_id)):
     return {"profile": profile}
 
 
+@router.post("/resync")
+async def resync(user_id: int = Depends(get_current_user_id)):
+    """Re-import the user's selected (allowed) chats from scratch and re-analyze."""
+    try:
+        profile = await resync_and_analyze(user_id)
+    except ValueError as e:
+        if str(e) == "no_selection":
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "לא נבחרו צ'אטים. סמן אנשי קשר/קבוצות בעמוד ההרשאות, ואז סנכרן.",
+            )
+        if str(e) == "no_messages":
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "לא נמצאו הודעות בצ'אטים שנבחרו."
+            )
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "סנכרון נכשל, נסה שוב.")
+    return {"profile": profile}
+
+
 @router.put("")
 async def update_profile(body: ProfileIn, user_id: int = Depends(get_current_user_id)):
-    profile = await save_profile(user_id, body.summary, body.traits, edited=True)
+    profile = await save_profile(
+        user_id, body.summary, body.traits, business=body.business or {}, edited=True
+    )
     return {"profile": profile}

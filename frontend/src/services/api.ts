@@ -69,6 +69,14 @@ export async function syncContacts() {
   const r = await api.post('/contacts/sync');
   return r.data as Contact[];
 }
+export async function allowAllContacts() {
+  const r = await api.post('/contacts/allow-all');
+  return r.data as Contact[];
+}
+export async function disallowAllContacts() {
+  const r = await api.post('/contacts/disallow-all');
+  return r.data as Contact[];
+}
 export async function patchContact(id: number, body: Partial<Contact>) {
   const r = await api.patch(`/contacts/${id}`, body);
   return r.data as Contact;
@@ -102,17 +110,38 @@ export type StyleTraits = {
   formality?: string;
   typical_length?: string;
   emoji_usage?: string;
+  top_emojis?: string[];
+  greeting_style?: string;
+  signoff_style?: string;
   slang?: string;
   punctuation?: string;
+  humor?: string;
+  directness?: string;
+  warmth?: string;
+  enthusiasm?: string;
+  question_style?: string;
+  response_speed_style?: string;
   languages?: string[];
   personality?: string[];
   common_phrases?: string[];
+  dos?: string[];
+  donts?: string[];
+};
+export type Business = {
+  has_business?: boolean;
+  name?: string;
+  description?: string;
+  products_services?: string;
+  business_tone?: string;
+  notes?: string;
 };
 export type StyleProfile = {
   summary: string;
   traits: StyleTraits;
+  business?: Business;
   edited?: boolean;
   updated_at?: string;
+  analyzed_count?: number;
 };
 
 export async function getStyleProfile() {
@@ -123,7 +152,19 @@ export async function analyzeStyleProfile() {
   const r = await api.post('/style-profile/analyze');
   return r.data as { profile: StyleProfile };
 }
-export async function saveStyleProfile(summary: string, traits: StyleTraits) {
-  const r = await api.put('/style-profile', { summary, traits });
+export async function resyncProfile() {
+  // Re-imports selected chats + re-embeds + analyzes — can take a while.
+  const r = await api.post('/style-profile/resync', {}, { timeout: 300000 });
   return r.data as { profile: StyleProfile };
+}
+export async function saveStyleProfile(summary: string, traits: StyleTraits, business: Business) {
+  const r = await api.put('/style-profile', { summary, traits, business });
+  return r.data as { profile: StyleProfile };
+}
+
+// ----- Playground: chat with your own model --------------------------------
+export type ReplySource = { text: string; score: number };
+export async function testReply(incoming_message: string) {
+  const r = await api.post('/ai/test', { incoming_message }, { timeout: 60000 });
+  return r.data as { suggestion: string; used_history: number; sources: ReplySource[] };
 }

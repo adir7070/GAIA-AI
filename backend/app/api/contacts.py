@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user_id, get_db
@@ -35,6 +35,26 @@ async def sync_contacts(
 ):
     """Pull the user's WhatsApp contacts from the bridge into Postgres, then return them."""
     await sync_user_contacts(user_id)
+    return await _list(db, user_id)
+
+
+@router.post("/allow-all", response_model=list[ContactOut])
+async def allow_all(
+    user_id: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+):
+    """Enable AI suggestions for ALL of the user's contacts (bulk; no per-contact import)."""
+    await db.execute(update(Contact).where(Contact.user_id == user_id).values(allowed=True))
+    await db.commit()
+    return await _list(db, user_id)
+
+
+@router.post("/disallow-all", response_model=list[ContactOut])
+async def disallow_all(
+    user_id: int = Depends(get_current_user_id), db: AsyncSession = Depends(get_db)
+):
+    """Disable AI suggestions for ALL of the user's contacts."""
+    await db.execute(update(Contact).where(Contact.user_id == user_id).values(allowed=False))
+    await db.commit()
     return await _list(db, user_id)
 
 
