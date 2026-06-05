@@ -15,6 +15,7 @@ dependencies = [
     "tenacity>=9.0",
     "datasets>=3.0",
     "sentence-transformers>=3.0",
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
@@ -27,7 +28,15 @@ train = [
     "bitsandbytes>=0.43",
     "wandb>=0.18",
 ]
+# Reporting artifacts: slide decks (pptx) + executable notebooks.
+report = [
+    "python-pptx>=0.6",
+    "nbformat>=5.9",
+    "nbconvert>=7.10",
+    "jupyter>=1.0",
+    "ipykernel>=6.29",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["synthetic*", "dataset*", "train*", "inference*", "eval*"]
+include = ["synthetic*", "dataset*", "train*", "inference*", "eval*", "eda*"]
