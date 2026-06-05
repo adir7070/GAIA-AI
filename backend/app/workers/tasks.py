@@ -43,7 +43,7 @@ def handle_incoming_message(user_id: int, message: dict) -> None:
     from app.services.confidence import score_confidence
     from app.services.llm_provider import generate_text
     from app.services.prompt_builder import build_runtime_prompt
-    from app.services.style_memory import retrieve_similar
+    from app.services.style_memory import retrieve_pairs
     from sqlalchemy import select
 
     from app.db.models.contact import Contact
@@ -70,15 +70,14 @@ def handle_incoming_message(user_id: int, message: dict) -> None:
 
         from app.services.style_profile import get_profile
 
-        similar = await retrieve_similar(user_id=user_id, query=text, top_k=12)
+        examples = await retrieve_pairs(user_id=user_id, query=text, top_k=8)
         prompt = build_runtime_prompt(
-            similar_history=[s["text"] for s in similar],
-            recent_turns=[],
+            examples=examples,
             incoming_message=text,
             style_profile=await get_profile(user_id),
         )
-        suggestion = await generate_text(prompt, max_tokens=512, temperature=0.6)
-        confidence, label = score_confidence(suggestion=suggestion, similar=similar)
+        suggestion = await generate_text(prompt, max_tokens=400, temperature=0.6)
+        confidence, label = score_confidence(suggestion=suggestion, similar=examples)
 
         suggestion_id = str(uuid.uuid4())
         await get_mongo().ai_outputs.insert_one(

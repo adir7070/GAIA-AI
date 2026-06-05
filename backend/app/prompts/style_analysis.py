@@ -8,7 +8,9 @@ Rules:
 - Write ALL natural-language values in HEBREW (the product UI is Hebrew).
 - Be accurate to the evidence below — do NOT invent facts about their life.
 - Describe HOW they communicate (style + character), grounded in the messages.
-- For every list field give 3-6 concrete items drawn from the messages.
+- For every list field give 3-6 concrete, DISTINCT items drawn from the messages.
+- CRITICAL: every field must be DISTINCT — never repeat the same word/phrase across summary, greeting, signoff, personality, or common_phrases. If a field has no clear evidence, give a short honest value rather than repeating another field.
+- Do not over-focus on emoji; mention it briefly only.
 
 [SAMPLE OF THE USER'S OWN MESSAGES]
 {messages}

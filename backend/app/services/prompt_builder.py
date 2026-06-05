@@ -3,6 +3,11 @@ from __future__ import annotations
 
 from app.prompts.runtime import RUNTIME_PROMPT
 
+# Emoji-related traits are intentionally NOT injected into the generator — they
+# pushed the model to add emoji to every reply. Emoji frequency is learned from
+# the real example pairs instead.
+_SKIP_TRAITS = {"top_emojis", "emoji_usage"}
+
 
 def _format_profile(profile: dict | None) -> str:
     if not profile:
@@ -12,7 +17,7 @@ def _format_profile(profile: dict | None) -> str:
         parts.append(profile["summary"])
     traits = profile.get("traits") or {}
     for k, v in traits.items():
-        if not v:
+        if not v or k in _SKIP_TRAITS:
             continue
         val = ", ".join(str(x) for x in v) if isinstance(v, list) else str(v)
         parts.append(f"{k}: {val}")
@@ -27,25 +32,19 @@ def _format_profile(profile: dict | None) -> str:
 
 def build_runtime_prompt(
     *,
-    similar_history: list[str],
-    recent_turns: list[dict],
+    examples: list[dict],
     incoming_message: str,
     style_profile: dict | None = None,
 ) -> str:
-    history_block = "\n".join(f"- {t}" for t in similar_history if t)
-    turns_block = "\n".join(
-        f"[{t.get('direction','?').upper()}] {t.get('text','')}" for t in recent_turns
+    ex_block = (
+        "\n---\n".join(
+            f"Them: {e.get('incoming','')}\nYou: {e.get('reply','')}" for e in examples if e.get("reply")
+        )
+        or "(no examples yet)"
     )
-    base = RUNTIME_PROMPT.format(
-        history=history_block or "(none)",
-        recent=turns_block or "(none)",
+    profile_text = _format_profile(style_profile) or "(none)"
+    return RUNTIME_PROMPT.format(
+        examples=ex_block,
+        profile=profile_text,
         incoming=incoming_message,
     )
-    profile_text = _format_profile(style_profile)
-    if profile_text:
-        # The user-editable profile is authoritative — honor it alongside the examples.
-        base = (
-            "[USER STYLE PROFILE — how this user communicates; honor this]\n"
-            f"{profile_text}\n\n" + base
-        )
-    return base

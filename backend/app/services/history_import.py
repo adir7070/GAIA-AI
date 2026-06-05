@@ -6,15 +6,32 @@ so both behave identically.
 from __future__ import annotations
 
 import logging
-import uuid
 
 import httpx
 
 from app.core.config import settings
 from app.db.mongo import get_mongo
-from app.services.style_memory import add_messages
+from app.services.style_memory import add_pairs
 
 log = logging.getLogger(__name__)
+
+
+def _build_pairs(history: list[dict]) -> list[dict]:
+    """From an ordered chat, build (their incoming -> the user's reply) pairs."""
+    msgs = sorted(history, key=lambda m: m.get("ts") or 0)
+    pairs: list[dict] = []
+    last_in: str | None = None
+    for m in msgs:
+        txt = (m.get("text") or "").strip()
+        if not txt:
+            continue
+        if m.get("direction") == "in":
+            last_in = txt[:400]
+        elif m.get("direction") == "out":
+            if last_in:
+                pairs.append({"incoming": last_in, "reply": txt[:400], "ts": m.get("ts")})
+                last_in = None  # one reply per incoming
+    return pairs
 
 
 async def import_contact_history(user_id: int, contact_wa_id: str, limit: int = 200) -> dict:
@@ -50,12 +67,7 @@ async def import_contact_history(user_id: int, contact_wa_id: str, limit: int = 
     ]
     await get_mongo().messages.insert_many(docs)
 
-    own = [d for d in docs if d.get("direction") == "out" and d.get("text")]
-    embedded = await add_messages(
-        user_id,
-        [
-            {"id": str(uuid.uuid4()), "text": d["text"], "ts": d.get("ts"), "wa_id": d.get("wa_id"), "direction": "out"}
-            for d in own
-        ],
-    )
-    return {"saved": len(docs), "embedded": embedded}
+    # Build & embed (their message -> your reply) pairs — the basis for 1:1 cloning.
+    pairs = _build_pairs(history)
+    embedded = await add_pairs(user_id, pairs)
+    return {"saved": len(docs), "pairs": embedded}

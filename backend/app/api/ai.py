@@ -16,7 +16,7 @@ from app.db.mongo import get_mongo
 from app.schemas.ai import FeedbackRequest, FeedbackResponse, GenerateRequest, GenerateResponse
 from app.services.confidence import score_confidence
 from app.services.prompt_builder import build_runtime_prompt
-from app.services.style_memory import retrieve_similar
+from app.services.style_memory import retrieve_pairs
 from app.services.llm_provider import generate_text
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -40,19 +40,16 @@ async def generate(
             status.HTTP_403_FORBIDDEN, "AI suggestions are not enabled for this contact"
         )
 
-    similar = await retrieve_similar(user_id=user_id, query=body.incoming_message, top_k=12)
-    recent = await _recent_turns(user_id, contact.id, n=8)
-
     from app.services.style_profile import get_profile
 
+    examples = await retrieve_pairs(user_id, body.incoming_message, top_k=8)
     prompt = build_runtime_prompt(
-        similar_history=[s["text"] for s in similar],
-        recent_turns=recent,
+        examples=examples,
         incoming_message=body.incoming_message,
         style_profile=await get_profile(user_id),
     )
-    suggestion = await generate_text(prompt, max_tokens=512, temperature=0.6)
-    confidence, label = score_confidence(suggestion=suggestion, similar=similar)
+    suggestion = await generate_text(prompt, max_tokens=400, temperature=0.6)
+    confidence, label = score_confidence(suggestion=suggestion, similar=examples)
 
     suggestion_id = str(uuid.uuid4())
     await get_mongo().ai_outputs.insert_one(
@@ -88,21 +85,23 @@ async def test_generate(
     needed. Lets the user 'chat with themselves' to evaluate the model."""
     from app.services.style_profile import get_profile
 
-    similar = await retrieve_similar(user_id=user_id, query=body.incoming_message, top_k=12)
+    examples = await retrieve_pairs(user_id, body.incoming_message, top_k=8)
     prompt = build_runtime_prompt(
-        similar_history=[s["text"] for s in similar],
-        recent_turns=[],
+        examples=examples,
         incoming_message=body.incoming_message,
         style_profile=await get_profile(user_id),
     )
-    suggestion = await generate_text(prompt, max_tokens=512, temperature=0.6)
-    # Evidence: the user's own messages that most influenced this reply.
+    suggestion = await generate_text(prompt, max_tokens=400, temperature=0.6)
+    # Evidence: real (their message -> your reply) examples that shaped this answer.
     sources = [
-        {"text": s.get("text", ""), "score": round(float(s.get("score", 0)), 3)}
-        for s in similar[:6]
-        if s.get("text")
+        {
+            "incoming": e.get("incoming", ""),
+            "reply": e.get("reply", ""),
+            "score": round(float(e.get("score", 0)), 3),
+        }
+        for e in examples[:6]
     ]
-    return {"suggestion": suggestion, "used_history": len(similar), "sources": sources}
+    return {"suggestion": suggestion, "used_history": len(examples), "sources": sources}
 
 
 @router.post("/feedback", response_model=FeedbackResponse)

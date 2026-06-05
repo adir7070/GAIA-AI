@@ -124,8 +124,8 @@ async def resync_and_analyze(user_id: int) -> dict:
 
     from app.db.models.contact import Contact
     from app.db.postgres import async_session_maker
-    from app.db.qdrant import reset_user_collection
     from app.services.history_import import import_contact_history
+    from app.services.style_memory import reset_pairs_collection
 
     async with async_session_maker() as db:
         allowed = (
@@ -139,9 +139,9 @@ async def resync_and_analyze(user_id: int) -> dict:
 
     chosen = list(allowed)[:MAX_RESYNC_CONTACTS]
 
-    # Start from zero: wipe previously-imported messages + embeddings.
+    # Start from zero: wipe previously-imported messages + embedded pairs.
     await get_mongo().messages.delete_many({"user_id": user_id})
-    await reset_user_collection(user_id)
+    await reset_pairs_collection(user_id)
 
     imported = 0
     for wa in chosen:

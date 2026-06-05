@@ -62,14 +62,16 @@ export default function PlaygroundPage() {
                 {t.text}
               </div>
               {t.role === 'model' && t.sources && t.sources.length > 0 && (
-                <details className="max-w-[80%] text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1">
+                <details className="max-w-[85%] text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1">
                   <summary className="cursor-pointer select-none">
-                    למה ענה ככה? — ההודעות שלך שהשפיעו ({t.sources.length})
+                    למה ענה ככה? — דוגמאות אמיתיות שלך לשיחות דומות ({t.sources.length})
                   </summary>
-                  <ul className="mt-1 space-y-0.5">
+                  <ul className="mt-1 space-y-1.5">
                     {t.sources.map((s, j) => (
-                      <li key={j}>
-                        • {s.text} <span className="opacity-40">({s.score})</span>
+                      <li key={j} className="border-r-2 border-gray-200 pr-2">
+                        <div className="text-gray-500">קיבלת: {s.incoming}</div>
+                        <div className="text-gray-800">ענית: {s.reply}</div>
+                        <div className="opacity-40">דמיון: {s.score}</div>
                       </li>
                     ))}
                   </ul>
