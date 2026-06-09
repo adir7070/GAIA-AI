@@ -102,17 +102,10 @@ def build_runtime_prompt(
     )
 
 
-def build_system_message(
-    *,
-    examples: list[dict],
-    style_profile: dict | None = None,
-) -> str:
+def build_system_message(style_profile: dict | None = None) -> str:
     """System message for multi-turn playground chat.
 
-    Profile + style examples only. Incoming message is supplied separately
+    Profile only — no examples. Incoming message is supplied separately
     as the final user turn in the conversation history array.
     """
-    return SYSTEM_PROMPT.format(
-        profile=_format_profile(style_profile),
-        examples=_format_examples(examples),
-    )
+    return SYSTEM_PROMPT.format(profile=_format_profile(style_profile))

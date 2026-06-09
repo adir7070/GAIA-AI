@@ -166,8 +166,8 @@ async def analyze_style(user_id: int) -> dict:
     sample = "\n".join(f"- {m}" for m in msgs)
     raw = await generate_text(
         STYLE_ANALYSIS_PROMPT.format(messages=sample),
-        system="Return only valid JSON.",
-        max_tokens=1300,
+        system="Return only valid JSON. Be concrete and specific. Never write 'כפי שנראה בהודעות'.",
+        max_tokens=2048,
         temperature=0.4,
     )
     try:

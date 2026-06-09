@@ -1,51 +1,52 @@
 """Prompt that turns a sample of the user's own messages into a RICH, explicit,
 editable style profile — the implicit style made visible."""
 
-STYLE_ANALYSIS_PROMPT = """You analyze a person's WhatsApp writing style from a large sample of THEIR OWN sent messages.
-Produce a detailed, friendly profile the product shows the user: "this is how the model understands you".
+STYLE_ANALYSIS_PROMPT = """You analyze a person's WhatsApp writing style from a sample of THEIR OWN sent messages.
+Produce a vivid, concrete profile. It will be injected directly into an AI model to make it sound exactly like this person.
 
-Rules:
-- Write ALL natural-language values in HEBREW (the product UI is Hebrew).
-- Be accurate to the evidence below — do NOT invent facts about their life.
-- Describe HOW they communicate (style + character), grounded in the messages.
-- For every list field give 3-6 concrete, DISTINCT items drawn from the messages.
-- CRITICAL: every field must be DISTINCT — never repeat the same word/phrase across summary, greeting, signoff, personality, or common_phrases. If a field has no clear evidence, give a short honest value rather than repeating another field.
-- Do not over-focus on emoji; mention it briefly only.
+STRICT RULES:
+- All natural-language values MUST be written in HEBREW.
+- Be specific and concrete — describe the ACTUAL behavior you saw.
+- NEVER write lazy filler like "כפי שנראה בהודעות", "על פי ההודעות", "כפי שמשתמע", "לא X, כפי ש..." — these are USELESS. Always give the real observation.
+- NEVER invent personal facts not evidenced in the messages.
+- For every list field: 3-6 specific, distinct items pulled directly from the messages.
+- Every field must describe something unique — do NOT repeat the same phrase across fields.
+- If a field truly has no evidence, write a short honest description based on absence (e.g. "לא נראה שימוש בהומור").
 
-[SAMPLE OF THE USER'S OWN MESSAGES]
+[THE USER'S OWN MESSAGES]
 {messages}
 
-Return ONLY valid JSON (no markdown, no commentary) in EXACTLY this shape:
+Return ONLY valid JSON — no markdown, no commentary. Exactly this shape:
 {{
-  "summary": "3-5 משפטים בעברית: מי האדם הזה כמתקשר, איך הוא נשמע ואיך הוא עונה",
+  "summary": "3-5 משפטים בעברית: מי האדם הזה כמתקשר? איך הוא נשמע? מה מייחד אותו?",
   "traits": {{
-    "tone": "<הטון הכללי>",
-    "formality": "<מאוד קליל / קליל / ניטרלי / רשמי>",
-    "typical_length": "<אורך תשובה אופייני, עם דוגמה>",
-    "emoji_usage": "<עד כמה ואיך משתמש באימוג'י>",
-    "top_emojis": ["😄", "🙏", "..."],
-    "greeting_style": "<איך הוא פותח שיחה / מתחיל הודעה>",
-    "signoff_style": "<איך הוא מסיים שיחה / חותם>",
-    "slang": "<סלנג ומילים אופייניות>",
-    "punctuation": "<הרגלי פיסוק (נקודות, סימני קריאה, רווחים)>",
-    "humor": "<האם ואיך משתמש בהומור>",
-    "directness": "<ישיר וענייני / רך ומרכך / מתחמק>",
-    "warmth": "<מידת חום ואמפתיה>",
-    "enthusiasm": "<מידת התלהבות/אנרגיה>",
-    "question_style": "<איך הוא שואל שאלות>",
-    "response_speed_style": "<קצר ומהיר / מפורט ושקול>",
+    "tone": "<תאר את הטון בצורה חיה: לא 'ניטרלי' אלא 'חם, ישיר, לפעמים עם צחוק קל'>",
+    "formality": "<דוגמה: קליל מאוד — מדבר בגובה העיניים, לא משתמש בפורמלי>",
+    "typical_length": "<דוגמה: קצר מאוד, 1-3 מילים לרוב. לדוגמה: 'אוקי', 'מגיע', 'נשמע טוב'>",
+    "emoji_usage": "<כמה ואיזה: 'מעט, בעיקר 😊 🙏 — בעיקר בסיום הודעות חמות'>",
+    "top_emojis": ["😊", "🙏"],
+    "greeting_style": "<ספציפי: 'פותח ב-היי + שם' או 'מה קורה?' ישירות>",
+    "signoff_style": "<ספציפי: 'ביי!', 'תהיה טוב', 'אהבה' — מה שראית>",
+    "slang": "<מילים שחוזרות: 'ברו, שיגעון, וואי, אחי, בדיוק'>",
+    "punctuation": "<הרגלי פיסוק ספציפיים: 'לא כותב נקודות, משתמש ב... המון, קריאה לעיתים נדירות'>",
+    "humor": "<איך ומתי: 'הומור קל, סרקסטי לפעמים, משתמש בחחחח' — או 'כמעט ללא הומור'>",
+    "directness": "<ספציפי: 'מאוד ישיר — כותב מה שחושב ללא ריפוד' או 'מרכך, מקדים הקדמות'>",
+    "warmth": "<ספציפי: 'חם מאוד — מוסיף ❤️ ושם אנשים קרובים' או 'עסקי, לא מרבה בחום'>",
+    "enthusiasm": "<ספציפי: 'אנרגטי — כותב !!! ו-וואי' או 'שקט, מדוד'>",
+    "question_style": "<ספציפי: 'שאלות קצרות וישירות' או 'שואל שאלות לאחר פתיח חם'>",
+    "response_speed_style": "<ספציפי: 'קצר ומהיר — משפט אחד, לפעמים מילה אחת' או 'מפורט, מסביר'>",
     "languages": ["he"],
-    "personality": ["<תכונת אופי בתקשורת>", "..."],
+    "personality": ["<תכונה ספציפית שרואים בהודעות>", "..."],
     "common_phrases": ["<ביטוי/מילה שחוזרים>", "..."],
-    "dos": ["<מה המודל *כן* צריך לעשות כדי להישמע כמוהו>", "..."],
-    "donts": ["<מה המודל *לא* צריך לעשות>", "..."]
+    "dos": ["<הוראה ספציפית: מה המודל כן צריך לעשות כדי להישמע כמוהו>", "..."],
+    "donts": ["<הוראה ספציפית: מה המודל לא צריך לעשות>", "..."]
   }},
   "business": {{
-    "has_business": <true אם נראה מההודעות שיש לו עסק/עבודה עצמאית, אחרת false>,
-    "name": "<שם העסק אם מוזכר, אחרת ריק>",
-    "description": "<מה העסק עושה אם משתמע מההודעות, אחרת ריק>",
-    "products_services": "<מוצרים/שירותים אם מוזכרים, אחרת ריק>",
-    "business_tone": "<טון מול לקוחות אם משתמע, אחרת ריק>"
+    "has_business": false,
+    "name": "",
+    "description": "",
+    "products_services": "",
+    "business_tone": ""
   }}
 }}
 """

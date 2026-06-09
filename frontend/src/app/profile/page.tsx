@@ -168,8 +168,9 @@ export default function ProfilePage() {
               {SCALAR.map(({ key, label }) => (
                 <div key={key}>
                   <label className="block text-xs text-gray-600 mb-1">{label}</label>
-                  <input
-                    className="field"
+                  <textarea
+                    className="field resize-none"
+                    rows={2}
                     value={(traits[key] as string) ?? ''}
                     onChange={(e) => setScalar(key, e.target.value)}
                   />
@@ -180,7 +181,12 @@ export default function ProfilePage() {
               {LISTS.map(({ key, label }) => (
                 <div key={key}>
                   <label className="block text-xs text-gray-600 mb-1">{label} (מופרד בפסיקים)</label>
-                  <input className="field" value={listVal(key)} onChange={(e) => setList(key, e.target.value)} />
+                  <textarea
+                    className="field resize-none"
+                    rows={2}
+                    value={listVal(key)}
+                    onChange={(e) => setList(key, e.target.value)}
+                  />
                 </div>
               ))}
             </div>

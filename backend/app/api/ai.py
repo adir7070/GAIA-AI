@@ -93,9 +93,9 @@ async def test_generate(
     needed. Supports multi-turn conversation history for coherent dialogue."""
     from app.services.style_profile import get_profile
 
-    examples = await retrieve_pairs(user_id, body.incoming_message, top_k=8)
     style_profile = await get_profile(user_id)
-    system = build_system_message(examples=examples, style_profile=style_profile)
+    system = build_system_message(style_profile)
+    examples = await retrieve_pairs(user_id, body.incoming_message, top_k=6)
 
     # Convert playground turns to LLM-native user/assistant format.
     # "them" = the other person = user role; "me" = the clone = assistant role.
