@@ -184,6 +184,17 @@ export async function teachGap(question: string, answer: string) {
   return r.data as { saved: number };
 }
 
+export type TaughtPair = { id: string; incoming: string; reply: string; ts?: number };
+
+export async function listTaught() {
+  const r = await api.get('/ai/taught');
+  return r.data as TaughtPair[];
+}
+
+export async function deleteTaught(pointId: string) {
+  await api.delete(`/ai/taught/${pointId}`);
+}
+
 // ----- Recent suggestions (dashboard history) ------------------------------
 export async function listSuggestions(limit = 20) {
   const r = await api.get('/ai/suggestions', { params: { limit } });

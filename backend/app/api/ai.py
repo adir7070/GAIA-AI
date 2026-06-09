@@ -145,6 +145,23 @@ async def teach_gap(
     return {"saved": count}
 
 
+@router.get("/taught")
+async def list_taught(user_id: int = Depends(get_current_user_id)) -> list[dict]:
+    """Return all manually-taught Q→A pairs for the learning history page."""
+    from app.services.style_memory import get_manual_pairs
+    return await get_manual_pairs(user_id)
+
+
+@router.delete("/taught/{point_id}")
+async def delete_taught(point_id: str, user_id: int = Depends(get_current_user_id)) -> dict:
+    """Delete a manually-taught pair by its Qdrant point ID."""
+    from app.services.style_memory import delete_pair
+    ok = await delete_pair(user_id, point_id)
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "pair not found")
+    return {"deleted": True}
+
+
 @router.post("/feedback", response_model=FeedbackResponse)
 async def feedback(
     body: FeedbackRequest,

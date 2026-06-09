@@ -77,8 +77,8 @@ async def add_pairs(user_id: int, pairs: list[dict[str, Any]], *, manual: bool =
     return len(points)
 
 
-async def get_manual_pairs(user_id: int, limit: int = 30) -> list[dict[str, Any]]:
-    """Return all manually-taught pairs (manual=True), newest first."""
+async def get_manual_pairs(user_id: int, limit: int = 50) -> list[dict[str, Any]]:
+    """Return all manually-taught pairs (manual=True) with their point IDs."""
     await _ensure_pairs(user_id)
     client = get_qdrant()
     col = user_pairs_collection(user_id)
@@ -99,8 +99,27 @@ async def get_manual_pairs(user_id: int, limit: int = 30) -> list[dict[str, Any]
     for p in res:
         pl = p.payload or {}
         if pl.get("incoming") and pl.get("reply"):
-            out.append({"incoming": pl["incoming"], "reply": pl["reply"]})
+            out.append({
+                "id": str(p.id),
+                "incoming": pl["incoming"],
+                "reply": pl["reply"],
+                "ts": pl.get("ts"),
+            })
     return out
+
+
+async def delete_pair(user_id: int, point_id: str) -> bool:
+    """Delete a single pair by its Qdrant point ID."""
+    await _ensure_pairs(user_id)
+    try:
+        from qdrant_client.http.models import PointIdsList
+        await get_qdrant().delete(
+            collection_name=user_pairs_collection(user_id),
+            points_selector=PointIdsList(points=[point_id]),
+        )
+        return True
+    except Exception:
+        return False
 
 
 async def retrieve_pairs(user_id: int, query: str, top_k: int = 8) -> list[dict[str, Any]]:
