@@ -168,3 +168,17 @@ export async function testReply(incoming_message: string) {
   const r = await api.post('/ai/test', { incoming_message }, { timeout: 60000 });
   return r.data as { suggestion: string; used_history: number; sources: ReplySource[] };
 }
+
+// ----- Recent suggestions (dashboard history) ------------------------------
+export async function listSuggestions(limit = 20) {
+  const r = await api.get('/ai/suggestions', { params: { limit } });
+  return r.data as Array<{
+    suggestion_id: string;
+    contact_id: number;
+    contact_name?: string;
+    incoming: string;
+    suggestion: string;
+    confidence: number;
+    label: 'ANSWER_NOW' | 'ASK_USER_FOR_TEACHING' | 'UNSURE';
+  }>;
+}

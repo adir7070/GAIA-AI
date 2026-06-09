@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -128,6 +128,25 @@ async def feedback(
     db.add(fb)
     await db.commit()
     return FeedbackResponse(ok=True)
+
+
+@router.get("/suggestions")
+async def list_suggestions(
+    limit: int = Query(default=20, le=100),
+    user_id: int = Depends(get_current_user_id),
+) -> list[dict]:
+    """Return the most recent AI suggestions for the dashboard history."""
+    cursor = (
+        get_mongo()
+        .ai_outputs.find({"user_id": user_id})
+        .sort("created_at", -1)
+        .limit(limit)
+    )
+    out = []
+    async for doc in cursor:
+        doc.pop("_id", None)
+        out.append(doc)
+    return out
 
 
 async def _recent_turns(user_id: int, contact_id: int, n: int) -> list[dict]:

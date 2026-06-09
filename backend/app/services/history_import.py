@@ -16,21 +16,38 @@ from app.services.style_memory import add_pairs
 log = logging.getLogger(__name__)
 
 
+_MAX_REPLY_GAP_MS = 30 * 60 * 1000  # 30 minutes — beyond this it's a new topic, not a reply
+
+
 def _build_pairs(history: list[dict]) -> list[dict]:
-    """From an ordered chat, build (their incoming -> the user's reply) pairs."""
+    """Build genuine (their message → your reply) pairs from a chat history.
+
+    Only pairs messages that are temporally close (≤30 min gap) to avoid
+    false pairs where the user's reply is actually about a completely different
+    topic from an earlier part of the conversation.
+    """
     msgs = sorted(history, key=lambda m: m.get("ts") or 0)
     pairs: list[dict] = []
     last_in: str | None = None
+    last_in_ts: int | None = None
+
     for m in msgs:
         txt = (m.get("text") or "").strip()
         if not txt:
             continue
+        ts = m.get("ts") or 0
+
         if m.get("direction") == "in":
             last_in = txt[:400]
-        elif m.get("direction") == "out":
-            if last_in:
-                pairs.append({"incoming": last_in, "reply": txt[:400], "ts": m.get("ts")})
-                last_in = None  # one reply per incoming
+            last_in_ts = ts
+        elif m.get("direction") == "out" and last_in:
+            # Drop pair if too much time passed — they're not a real exchange
+            gap = ts - (last_in_ts or 0)
+            if gap <= _MAX_REPLY_GAP_MS:
+                pairs.append({"incoming": last_in, "reply": txt[:400], "ts": ts})
+            last_in = None
+            last_in_ts = None
+
     return pairs
 
 
