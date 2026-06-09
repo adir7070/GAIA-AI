@@ -1,6 +1,7 @@
 """AI suggestion + feedback endpoints."""
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -93,11 +94,19 @@ async def test_generate(
     """Playground: generate a reply in the user's style for any message, no contact
     needed. Supports multi-turn conversation history for coherent dialogue."""
     from app.services.style_profile import get_profile
+    from app.services.style_memory import get_manual_pairs
 
     style_profile = await get_profile(user_id)
     search_query = extract_search_keywords(body.incoming_message)
-    examples = await retrieve_pairs(user_id, search_query, top_k=6)
-    system = build_system_message(examples=examples, style_profile=style_profile)
+    examples, manual_pairs = await asyncio.gather(
+        retrieve_pairs(user_id, search_query, top_k=6),
+        get_manual_pairs(user_id),
+    )
+    system = build_system_message(
+        examples=examples,
+        style_profile=style_profile,
+        manual_pairs=manual_pairs,
+    )
 
     # Convert playground turns to LLM-native user/assistant format.
     # "them" = the other person = user role; "me" = the clone = assistant role.
@@ -117,6 +126,23 @@ async def test_generate(
         for e in examples[:6]
     ]
     return {"suggestion": suggestion, "used_history": len(examples), "sources": sources}
+
+
+class TeachRequest(BaseModel):
+    question: str
+    answer: str
+
+
+@router.post("/teach")
+async def teach_gap(
+    body: TeachRequest, user_id: int = Depends(get_current_user_id)
+) -> dict:
+    """Save a manually provided Q→A pair to the user's vector memory.
+    Called from the learn center when the user corrects a knowledge gap."""
+    from app.services.style_memory import add_pairs
+
+    count = await add_pairs(user_id, [{"incoming": body.question, "reply": body.answer}], manual=True)
+    return {"saved": count}
 
 
 @router.post("/feedback", response_model=FeedbackResponse)

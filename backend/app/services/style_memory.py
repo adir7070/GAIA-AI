@@ -50,8 +50,11 @@ async def reset_pairs_collection(user_id: int) -> None:
     )
 
 
-async def add_pairs(user_id: int, pairs: list[dict[str, Any]]) -> int:
-    """pairs: list of {incoming, reply}. Embeds the incoming side."""
+async def add_pairs(user_id: int, pairs: list[dict[str, Any]], *, manual: bool = False) -> int:
+    """pairs: list of {incoming, reply}. Embeds the incoming side.
+    manual=True marks the pair as explicitly taught by the user so it is
+    always included in the prompt regardless of semantic similarity.
+    """
     pairs = [p for p in pairs if p.get("incoming") and p.get("reply")]
     if not pairs:
         return 0
@@ -61,12 +64,43 @@ async def add_pairs(user_id: int, pairs: list[dict[str, Any]]) -> int:
         PointStruct(
             id=str(uuid.uuid4()),
             vector=v,
-            payload={"incoming": p["incoming"], "reply": p["reply"], "ts": p.get("ts")},
+            payload={
+                "incoming": p["incoming"],
+                "reply": p["reply"],
+                "ts": p.get("ts"),
+                "manual": manual,
+            },
         )
         for p, v in zip(pairs, vectors)
     ]
     await get_qdrant().upsert(collection_name=user_pairs_collection(user_id), points=points)
     return len(points)
+
+
+async def get_manual_pairs(user_id: int, limit: int = 30) -> list[dict[str, Any]]:
+    """Return all manually-taught pairs (manual=True), newest first."""
+    await _ensure_pairs(user_id)
+    client = get_qdrant()
+    col = user_pairs_collection(user_id)
+    from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+    try:
+        res, _ = await client.scroll(
+            collection_name=col,
+            scroll_filter=Filter(
+                must=[FieldCondition(key="manual", match=MatchValue(value=True))]
+            ),
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+    except Exception:
+        return []
+    out = []
+    for p in res:
+        pl = p.payload or {}
+        if pl.get("incoming") and pl.get("reply"):
+            out.append({"incoming": pl["incoming"], "reply": pl["reply"]})
+    return out
 
 
 async def retrieve_pairs(user_id: int, query: str, top_k: int = 8) -> list[dict[str, Any]]:

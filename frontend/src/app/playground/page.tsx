@@ -1,12 +1,36 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { testReply, type ReplySource, type ConversationHistoryTurn } from '@/services/api';
+import type { ProfileGap } from '@/types/learn';
 
 type Turn = { role: 'incoming' | 'model'; text: string; sources?: ReplySource[] };
 
 const UNCERTAIN_RE = /לא בטוח|לא זוכר|לא יודע|לא ידוע|לא מכיר|אינ[יי] יודע|אינ[יי] זוכר/;
 const isUncertain = (text: string) => UNCERTAIN_RE.test(text);
+
+const SESSION_KEY = 'gaia_playground_turns';
+const GAPS_KEY = 'gaia_profile_gaps';
+
+function loadTurns(): Turn[] {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveTurns(turns: Turn[]) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(turns)); } catch { /* ignore */ }
+}
+
+function saveGap(question: string, reply: string) {
+  try {
+    const raw = localStorage.getItem(GAPS_KEY);
+    const gaps: ProfileGap[] = raw ? JSON.parse(raw) : [];
+    gaps.unshift({ id: crypto.randomUUID(), question, reply, ts: Date.now() });
+    localStorage.setItem(GAPS_KEY, JSON.stringify(gaps.slice(0, 50)));
+  } catch { /* ignore */ }
+}
 
 export default function PlaygroundPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -14,14 +38,27 @@ export default function PlaygroundPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const initialized = useRef(false);
+
+  // Restore chat from sessionStorage on mount
+  useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true;
+      const saved = loadTurns();
+      if (saved.length > 0) setTurns(saved);
+    }
+  }, []);
+
+  // Persist turns to sessionStorage whenever they change
+  useEffect(() => {
+    if (initialized.current) saveTurns(turns);
+  }, [turns]);
 
   const send = async () => {
     const text = input.trim();
     if (!text || busy) return;
     setErr(null);
     setInput('');
-    // Capture prior turns before the state update — React closure gives us the value
-    // from the last render, which is exactly the conversation history up to this point.
     const historySnapshot = turns.map<ConversationHistoryTurn>((t) => ({
       role: t.role === 'incoming' ? 'them' : 'me',
       text: t.text,
@@ -31,6 +68,7 @@ export default function PlaygroundPage() {
     try {
       const r = await testReply(text, historySnapshot);
       setTurns((t) => [...t, { role: 'model', text: r.suggestion, sources: r.sources }]);
+      if (isUncertain(r.suggestion)) saveGap(text, r.suggestion);
     } catch (e: any) {
       setErr(e?.response?.data?.detail || 'יצירת התשובה נכשלה');
     } finally {
@@ -41,7 +79,17 @@ export default function PlaygroundPage() {
 
   return (
     <main className="min-h-screen px-4 py-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-1">צ׳אט עם עצמי (בדיקת המודל)</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold">צ׳אט עם עצמי (בדיקת המודל)</h1>
+        {turns.length > 0 && (
+          <button
+            className="text-xs text-gray-400 hover:text-rose-500 transition-colors"
+            onClick={() => { setTurns([]); saveTurns([]); }}
+          >
+            נקה שיחה ✕
+          </button>
+        )}
+      </div>
       <p className="text-sm text-gray-600 mb-4">
         כתוב הודעה כאילו מישהו שלח לך אותה — והמודל יענה <b>בסגנון שלך</b>. כך אפשר לבחון איך המודל למד אותך,
         ולכוונן את הפרופיל בהתאם.

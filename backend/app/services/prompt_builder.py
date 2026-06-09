@@ -110,19 +110,19 @@ def _format_profile(profile: dict | None) -> str:
 
 
 def _format_examples(examples: list[dict]) -> str:
-    """Format top-3 closest pairs as style-reference conversation snippets.
+    """Format retrieved pairs as real conversation snippets.
 
     These are real (their message → your reply) pairs retrieved by semantic
-    similarity. They show HOW the person writes, not what to say.
-    Capped at 3 to keep their influence minimal.
+    similarity. They carry both factual info AND style signal.
+    Send all retrieved (up to 6) so facts are never silently dropped.
     """
     if not examples:
         return "(אין דוגמאות — הסגנון מגיע מהאיפיון בלבד)"
 
     lines: list[str] = []
-    for e in examples[:2]:
-        incoming = (e.get("incoming") or "").strip()[:120]
-        reply = (e.get("reply") or "").strip()[:120]
+    for e in examples[:6]:
+        incoming = (e.get("incoming") or "").strip()[:150]
+        reply = (e.get("reply") or "").strip()[:150]
         if incoming and reply:
             lines.append(f"הם: {incoming}\nאני: {reply}")
 
@@ -156,18 +156,33 @@ def get_emoji_rule(profile: dict | None) -> str:
     return _emoji_instruction(freq, traits.get("top_emojis"), traits.get("emoji_usage"))
 
 
+def _format_manual_facts(manual_pairs: list[dict]) -> str:
+    """Format manually-taught Q→A pairs as explicit facts."""
+    if not manual_pairs:
+        return "(אין עובדות שנלמדו עדיין — השתמש בפרופיל ובשיחות)"
+    lines = []
+    for p in manual_pairs:
+        q = (p.get("incoming") or "").strip()[:150]
+        a = (p.get("reply") or "").strip()[:150]
+        if q and a:
+            lines.append(f"ש: {q}\nת: {a}")
+    return "\n\n".join(lines) if lines else "(אין עובדות שנלמדו עדיין)"
+
+
 def build_system_message(
     *,
     examples: list[dict],
     style_profile: dict | None = None,
+    manual_pairs: list[dict] | None = None,
 ) -> str:
     """System message for multi-turn playground chat.
 
-    Profile = 70%, top-2 examples = 30% style-only adjustment.
-    Incoming message is supplied separately as the final user turn.
+    Profile = primary identity, manual_pairs = explicit taught facts (always included),
+    examples = semantic style calibration.
     """
     return SYSTEM_PROMPT.format(
         profile=_format_profile(style_profile),
+        manual_facts=_format_manual_facts(manual_pairs or []),
         examples=_format_examples(examples),
         emoji_rule=get_emoji_rule(style_profile),
     )

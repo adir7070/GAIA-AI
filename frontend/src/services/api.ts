@@ -179,6 +179,11 @@ export async function testReply(
   return r.data as { suggestion: string; used_history: number; sources: ReplySource[] };
 }
 
+export async function teachGap(question: string, answer: string) {
+  const r = await api.post('/ai/teach', { question, answer });
+  return r.data as { saved: number };
+}
+
 // ----- Recent suggestions (dashboard history) ------------------------------
 export async function listSuggestions(limit = 20) {
   const r = await api.get('/ai/suggestions', { params: { limit } });
