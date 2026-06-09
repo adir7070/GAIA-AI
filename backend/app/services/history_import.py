@@ -34,11 +34,11 @@ def _build_pairs(history: list[dict]) -> list[dict]:
     return pairs
 
 
-async def import_contact_history(user_id: int, contact_wa_id: str, limit: int = 200) -> dict:
+async def import_contact_history(user_id: int, contact_wa_id: str, limit: int = 3000) -> dict:
     """Pull last N messages for a contact, store in Mongo, embed the user's own
     ('out') messages into the style collection. Returns counts."""
     try:
-        async with httpx.AsyncClient(base_url=settings.WHATSAPP_BRIDGE_URL, timeout=120.0) as cli:
+        async with httpx.AsyncClient(base_url=settings.WHATSAPP_BRIDGE_URL, timeout=300.0) as cli:
             r = await cli.get(
                 f"/sessions/{user_id}/history",
                 params={"contact_id": contact_wa_id, "limit": limit},

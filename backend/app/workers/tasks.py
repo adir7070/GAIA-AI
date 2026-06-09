@@ -25,7 +25,7 @@ def embed_messages(user_id: int, messages: list[dict]) -> int:
 
 # ----- Initial history sync ------------------------------------------------
 @celery_app.task(name="gaia.import_history")
-def import_history(user_id: int, contact_wa_id: str, limit: int = 1000) -> dict:
+def import_history(user_id: int, contact_wa_id: str, limit: int = 3000) -> dict:
     """Pull last N messages for a contact from the bridge, store in Mongo + Qdrant."""
     from app.services.history_import import import_contact_history
 

@@ -23,11 +23,12 @@ log = logging.getLogger(__name__)
 # Character budget for the messages we feed the analyzer. Free Groq tiers cap
 # tokens-per-MINUTE (~12k for 70B), and a single request must fit under that —
 # so we sample a REPRESENTATIVE set spread across the whole history rather than
-# dumping everything (style is fully captured by a few hundred messages).
-# Hebrew tokenizes at ~1 token/char, and free Groq 70B caps a single request at
-# 12k tokens (input+output). Keep input well under that.
-CHAR_BUDGET = 6000
-PER_MSG_CAP = 200
+# dumping everything. The sampling is evenly distributed so even with 3000
+# messages, the analyzer sees a broad cross-section of the user's style.
+# Hebrew tokenizes at ~1 token/char; keep total input under ~8k to leave room
+# for the output and avoid rate-limit errors.
+CHAR_BUDGET = 8000
+PER_MSG_CAP = 300
 
 
 def _extract_json(text: str) -> str:
@@ -111,7 +112,7 @@ async def _collect_messages(user_id: int) -> list[str]:
 
 
 MAX_RESYNC_CONTACTS = 15
-RESYNC_MSGS_PER_CONTACT = 150
+RESYNC_MSGS_PER_CONTACT = 3000
 
 
 async def resync_and_analyze(user_id: int) -> dict:

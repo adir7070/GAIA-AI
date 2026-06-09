@@ -12,6 +12,27 @@ const { sendWebhook } = require('./events');
 const clients = new Map(); // userId -> { client, status, qr }
 const AUTH_PATH = '.wwebjs_auth';
 
+// whatsapp-web.js calls inject() right after page.goto(), but WhatsApp Web does a
+// client-side navigation before settling, destroying the execution context. Patching
+// the prototype lets the error be swallowed so initialize() continues and registers
+// the framenavigated handler, which calls inject() again once the page is stable.
+{
+  const _orig = Client.prototype.inject;
+  Client.prototype.inject = async function patchedInject() {
+    try {
+      await _orig.call(this);
+    } catch (err) {
+      if (
+        err?.message?.includes('Execution context was destroyed') ||
+        err?.message?.includes('Navigation')
+      ) {
+        return; // expected during WhatsApp's SPA navigation — framenavigated will retry
+      }
+      throw err;
+    }
+  };
+}
+
 function _exec() {
   // In docker we install chromium and point puppeteer at it.
   return process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
@@ -42,7 +63,7 @@ function clearStaleLocks(userId) {
   }
 }
 
-async function start(userId) {
+async function start(userId, retryCount = 0) {
   if (clients.has(userId)) {
     return clients.get(userId);
   }
@@ -55,10 +76,15 @@ async function start(userId) {
   };
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: String(userId), dataPath: '.wwebjs_auth' }),
+    webVersionCache: {
+      type: 'remote',
+      remotePath:
+        'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
+    },
     puppeteer: {
       headless: true,
       executablePath: _exec(),
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     },
   });
 
@@ -132,18 +158,29 @@ function get(userId) {
 
 async function destroy(userId) {
   const entry = clients.get(userId);
-  if (!entry) return;
-  try {
-    await entry.client.logout();
-  } catch (_) {
-    /* ignore */
+  if (entry) {
+    try {
+      await entry.client.logout();
+    } catch (_) {
+      /* ignore */
+    }
+    try {
+      await entry.client.destroy();
+    } catch (_) {
+      /* ignore */
+    }
+    clients.delete(userId);
   }
+  // Remove persisted LocalAuth data so the next start() gets a clean QR flow
+  const authDir = path.join(AUTH_PATH, `session-${String(userId)}`);
   try {
-    await entry.client.destroy();
-  } catch (_) {
-    /* ignore */
+    if (fs.existsSync(authDir)) {
+      fs.rmSync(authDir, { force: true, recursive: true });
+      console.log(`[bridge] cleared auth data for user=${userId}`);
+    }
+  } catch (err) {
+    console.error(`[bridge] destroy clearAuth error for user=${userId}:`, err.message);
   }
-  clients.delete(userId);
 }
 
 async function send(userId, to, text) {
