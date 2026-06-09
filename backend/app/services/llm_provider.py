@@ -86,6 +86,44 @@ async def generate_text(
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
+async def generate_with_history(
+    *,
+    system: str,
+    history: list[dict],
+    max_tokens: int = 400,
+    temperature: float = 0.6,
+    provider: Provider | None = None,
+    model: str | None = None,
+) -> str:
+    """Generate a reply given a system message and full conversation history.
+
+    `history` must be [{"role": "user"|"assistant", "content": str}].
+    The last element must have role "user" (the incoming message to answer).
+    """
+    p = provider or settings.LLM_PROVIDER
+    if p == "anthropic":
+        cli = _get_anthropic()
+        msg = await cli.messages.create(
+            model=model or settings.ANTHROPIC_MODEL,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system,
+            messages=history,
+        )
+        return "".join(b.text for b in msg.content if hasattr(b, "text")).strip()
+    cli = _get_groq() if p == "groq" else _get_openai()
+    chosen_model = model or (settings.GROQ_MODEL if p == "groq" else settings.OPENAI_MODEL)
+    messages: list[dict] = [{"role": "system", "content": system}] + history
+    resp = await cli.chat.completions.create(
+        model=chosen_model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        messages=messages,
+    )
+    return (resp.choices[0].message.content or "").strip()
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
 async def judge_pair(
     history: str,
     incoming: str,

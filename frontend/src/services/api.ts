@@ -164,8 +164,17 @@ export async function saveStyleProfile(summary: string, traits: StyleTraits, bus
 
 // ----- Playground: chat with your own model --------------------------------
 export type ReplySource = { incoming: string; reply: string; score: number };
-export async function testReply(incoming_message: string) {
-  const r = await api.post('/ai/test', { incoming_message }, { timeout: 60000 });
+export type ConversationHistoryTurn = { role: 'them' | 'me'; text: string };
+
+export async function testReply(
+  incoming_message: string,
+  conversation_history: ConversationHistoryTurn[] = [],
+) {
+  const r = await api.post(
+    '/ai/test',
+    { incoming_message, conversation_history },
+    { timeout: 60000 },
+  );
   return r.data as { suggestion: string; used_history: number; sources: ReplySource[] };
 }
 

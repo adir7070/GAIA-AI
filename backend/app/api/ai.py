@@ -4,6 +4,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -15,9 +17,9 @@ from app.db.models.feedback import Feedback
 from app.db.mongo import get_mongo
 from app.schemas.ai import FeedbackRequest, FeedbackResponse, GenerateRequest, GenerateResponse
 from app.services.confidence import score_confidence
-from app.services.prompt_builder import build_runtime_prompt
+from app.services.prompt_builder import build_runtime_prompt, build_system_message
 from app.services.style_memory import retrieve_pairs
-from app.services.llm_provider import generate_text
+from app.services.llm_provider import generate_text, generate_with_history
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -73,8 +75,14 @@ async def generate(
     )
 
 
+class ConversationTurn(BaseModel):
+    role: Literal["them", "me"]
+    text: str
+
+
 class TestRequest(BaseModel):
     incoming_message: str
+    conversation_history: list[ConversationTurn] = []
 
 
 @router.post("/test")
@@ -82,17 +90,22 @@ async def test_generate(
     body: TestRequest, user_id: int = Depends(get_current_user_id)
 ) -> dict:
     """Playground: generate a reply in the user's style for any message, no contact
-    needed. Lets the user 'chat with themselves' to evaluate the model."""
+    needed. Supports multi-turn conversation history for coherent dialogue."""
     from app.services.style_profile import get_profile
 
     examples = await retrieve_pairs(user_id, body.incoming_message, top_k=8)
-    prompt = build_runtime_prompt(
-        examples=examples,
-        incoming_message=body.incoming_message,
-        style_profile=await get_profile(user_id),
-    )
-    suggestion = await generate_text(prompt, max_tokens=400, temperature=0.6)
-    # Evidence: real (their message -> your reply) examples that shaped this answer.
+    style_profile = await get_profile(user_id)
+    system = build_system_message(examples=examples, style_profile=style_profile)
+
+    # Convert playground turns to LLM-native user/assistant format.
+    # "them" = the other person = user role; "me" = the clone = assistant role.
+    history: list[dict] = [
+        {"role": "user" if t.role == "them" else "assistant", "content": t.text}
+        for t in body.conversation_history
+    ]
+    history.append({"role": "user", "content": body.incoming_message})
+
+    suggestion = await generate_with_history(system=system, history=history)
     sources = [
         {
             "incoming": e.get("incoming", ""),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { testReply, type ReplySource } from '@/services/api';
+import { testReply, type ReplySource, type ConversationHistoryTurn } from '@/services/api';
 
 type Turn = { role: 'incoming' | 'model'; text: string; sources?: ReplySource[] };
 
@@ -17,10 +17,16 @@ export default function PlaygroundPage() {
     if (!text || busy) return;
     setErr(null);
     setInput('');
+    // Capture prior turns before the state update — React closure gives us the value
+    // from the last render, which is exactly the conversation history up to this point.
+    const historySnapshot = turns.map<ConversationHistoryTurn>((t) => ({
+      role: t.role === 'incoming' ? 'them' : 'me',
+      text: t.text,
+    }));
     setTurns((t) => [...t, { role: 'incoming', text }]);
     setBusy(true);
     try {
-      const r = await testReply(text);
+      const r = await testReply(text, historySnapshot);
       setTurns((t) => [...t, { role: 'model', text: r.suggestion, sources: r.sources }]);
     } catch (e: any) {
       setErr(e?.response?.data?.detail || 'יצירת התשובה נכשלה');
