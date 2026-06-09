@@ -17,7 +17,7 @@ from app.db.models.feedback import Feedback
 from app.db.mongo import get_mongo
 from app.schemas.ai import FeedbackRequest, FeedbackResponse, GenerateRequest, GenerateResponse
 from app.services.confidence import score_confidence
-from app.services.prompt_builder import build_runtime_prompt, build_system_message
+from app.services.prompt_builder import build_runtime_prompt, build_system_message, extract_search_keywords
 from app.services.style_memory import retrieve_pairs
 from app.services.llm_provider import generate_text, generate_with_history
 
@@ -44,7 +44,8 @@ async def generate(
 
     from app.services.style_profile import get_profile
 
-    examples = await retrieve_pairs(user_id, body.incoming_message, top_k=8)
+    search_query = extract_search_keywords(body.incoming_message)
+    examples = await retrieve_pairs(user_id, search_query, top_k=8)
     prompt = build_runtime_prompt(
         examples=examples,
         incoming_message=body.incoming_message,
@@ -94,8 +95,9 @@ async def test_generate(
     from app.services.style_profile import get_profile
 
     style_profile = await get_profile(user_id)
-    system = build_system_message(style_profile)
-    examples = await retrieve_pairs(user_id, body.incoming_message, top_k=6)
+    search_query = extract_search_keywords(body.incoming_message)
+    examples = await retrieve_pairs(user_id, search_query, top_k=6)
+    system = build_system_message(examples=examples, style_profile=style_profile)
 
     # Convert playground turns to LLM-native user/assistant format.
     # "them" = the other person = user role; "me" = the clone = assistant role.

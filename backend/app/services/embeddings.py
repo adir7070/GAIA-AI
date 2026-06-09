@@ -1,4 +1,9 @@
-"""Embedding service. BGE-large by default (CPU/GPU local) with OpenAI fallback."""
+"""Embedding service — always uses the local sentence-transformers model.
+
+The embedding model (for vector search) is intentionally decoupled from the
+LLM provider (for text generation). Switching LLM_PROVIDER to openai/groq does
+NOT change the embedding model, so Qdrant collections stay compatible.
+"""
 from __future__ import annotations
 
 import logging
@@ -17,25 +22,10 @@ def _local_model():
 
 
 async def embed(text: str) -> list[float]:
-    """Embed a single text. Sync model is fine on small batches; for hot paths use a worker."""
-    if settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
-        from openai import AsyncOpenAI
-
-        cli = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        r = await cli.embeddings.create(model=settings.OPENAI_EMBED_MODEL, input=[text])
-        return r.data[0].embedding
-
     vec = _local_model().encode(text, normalize_embeddings=True).tolist()
     return list(vec)
 
 
 async def embed_batch(texts: list[str]) -> list[list[float]]:
-    if settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
-        from openai import AsyncOpenAI
-
-        cli = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        r = await cli.embeddings.create(model=settings.OPENAI_EMBED_MODEL, input=texts)
-        return [d.embedding for d in r.data]
-
     vecs = _local_model().encode(texts, normalize_embeddings=True)
     return [list(v) for v in vecs]

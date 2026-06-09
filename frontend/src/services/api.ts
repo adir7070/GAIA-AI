@@ -109,6 +109,7 @@ export type StyleTraits = {
   tone?: string;
   formality?: string;
   typical_length?: string;
+  emoji_frequency?: number;
   emoji_usage?: string;
   top_emojis?: string[];
   greeting_style?: string;

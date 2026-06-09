@@ -2,14 +2,33 @@
 
 Design:
   • Profile   → dominant (who this person is)
-  • Examples  → top-3 closest semantic pairs, shown as style reference only (~5%)
+  • Examples  → top-2 closest semantic pairs, style reference only (~30%)
   • Incoming  → non-negotiable — the model must answer exactly what was asked
 """
 from __future__ import annotations
+import re
 
 from app.prompts.runtime import RUNTIME_PROMPT, SYSTEM_PROMPT
 
-_SKIP_TRAITS = {"top_emojis", "emoji_usage"}
+# Hebrew function/question words stripped before semantic search so that
+# "מה אתה הכי אוהב לאכול?" → "אוהב לאכול" instead of matching "אהבה" sentences.
+_HE_STOP = {
+    "מה","מי","איך","כמה","מתי","איפה","למה","אם","כי","אבל","גם","כן","לא",
+    "רק","כבר","עוד","כל","של","על","עם","אל","אני","אתה","את","הוא","היא",
+    "אנחנו","הם","הן","אתם","אתן","הכי","ממש","קצת","מאוד","מאד","בדיוק",
+    "פשוט","שלי","שלך","שלו","שלה","שלנו","שלהם","שלהן","יש","אין","בא",
+    "לי","לך","לו","לה","לנו","להם","היה","הייתה","היו","הייתי","זה","זאת",
+    "זו","אלה","אלו","כאן","שם","עכשיו","היום","מחר","אתמול","טוב","בסדר",
+}
+
+
+def extract_search_keywords(text: str) -> str:
+    """Strip Hebrew function/question words → leave content words for vector search."""
+    words = re.findall(r'[א-ת]+', text)
+    content = [w for w in words if w not in _HE_STOP and len(w) > 1]
+    return " ".join(content) if content else text
+
+_SKIP_TRAITS = {"top_emojis", "emoji_usage", "emoji_frequency"}
 
 _TRAIT_LABELS: dict[str, str] = {
     "tone": "טון כללי",
@@ -33,6 +52,30 @@ _TRAIT_LABELS: dict[str, str] = {
 }
 
 
+def _emoji_instruction(freq: int, top_emojis: list | None, usage_desc: str | None) -> str:
+    """Convert emoji_frequency scale (1-100) to an explicit model instruction."""
+    freq = max(1, min(100, int(freq)))
+    bar = "█" * (freq // 10) + "░" * (10 - freq // 10)
+    if freq <= 15:
+        rule = "כמעט אף פעם אל תשתמש באימוג'ים — רק במקרים נדירים מאוד"
+    elif freq <= 35:
+        rule = "השתמש באימוג'י לעיתים נדירות — אחד לכל כמה הודעות, לא בכל הודעה"
+    elif freq <= 55:
+        rule = "השתמש באימוג'י מדי פעם — בערך בכל שלישית מהתשובות"
+    elif freq <= 75:
+        rule = "השתמש באימוג'י לעיתים קרובות — ברוב ההודעות, אך לא בכולן"
+    else:
+        rule = "השתמש באימוג'י כמעט בכל הודעה — זה חלק מזהות הכתיבה"
+
+    emojis_str = ""
+    if top_emojis:
+        emojis_str = f" אימוג'ים אופייניים: {' '.join(str(e) for e in top_emojis[:5])}"
+    if usage_desc:
+        emojis_str += f" ({usage_desc})"
+
+    return f"• אימוג'ים [{bar} {freq}/100]: {rule}.{emojis_str}"
+
+
 def _format_profile(profile: dict | None) -> str:
     if not profile:
         return "אין פרופיל — ענה בצורה קלילה, קצרה וישירה."
@@ -40,6 +83,7 @@ def _format_profile(profile: dict | None) -> str:
     if profile.get("summary"):
         parts.append(f"סיכום: {profile['summary']}")
     traits = profile.get("traits") or {}
+
     priority = [
         "tone", "formality", "typical_length", "warmth", "directness",
         "humor", "slang", "greeting_style", "personality", "dos", "donts",
@@ -76,7 +120,7 @@ def _format_examples(examples: list[dict]) -> str:
         return "(אין דוגמאות — הסגנון מגיע מהאיפיון בלבד)"
 
     lines: list[str] = []
-    for e in examples[:3]:
+    for e in examples[:2]:
         incoming = (e.get("incoming") or "").strip()[:120]
         reply = (e.get("reply") or "").strip()[:120]
         if incoming and reply:
@@ -102,10 +146,28 @@ def build_runtime_prompt(
     )
 
 
-def build_system_message(style_profile: dict | None = None) -> str:
+def get_emoji_rule(profile: dict | None) -> str:
+    """Standalone emoji rule string for the dedicated prompt section."""
+    traits = (profile or {}).get("traits") or {}
+    freq = traits.get("emoji_frequency")
+    if freq is None:
+        desc = traits.get("emoji_usage") or ""
+        return f"השתמש באימוג'ים בצורה מתונה בהתאם לסגנון שבפרופיל.{' ' + desc if desc else ''}"
+    return _emoji_instruction(freq, traits.get("top_emojis"), traits.get("emoji_usage"))
+
+
+def build_system_message(
+    *,
+    examples: list[dict],
+    style_profile: dict | None = None,
+) -> str:
     """System message for multi-turn playground chat.
 
-    Profile only — no examples. Incoming message is supplied separately
-    as the final user turn in the conversation history array.
+    Profile = 70%, top-2 examples = 30% style-only adjustment.
+    Incoming message is supplied separately as the final user turn.
     """
-    return SYSTEM_PROMPT.format(profile=_format_profile(style_profile))
+    return SYSTEM_PROMPT.format(
+        profile=_format_profile(style_profile),
+        examples=_format_examples(examples),
+        emoji_rule=get_emoji_rule(style_profile),
+    )

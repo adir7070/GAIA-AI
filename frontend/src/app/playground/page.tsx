@@ -5,6 +5,9 @@ import { testReply, type ReplySource, type ConversationHistoryTurn } from '@/ser
 
 type Turn = { role: 'incoming' | 'model'; text: string; sources?: ReplySource[] };
 
+const UNCERTAIN_RE = /לא בטוח|לא זוכר|לא יודע|לא ידוע|לא מכיר|אינ[יי] יודע|אינ[יי] זוכר/;
+const isUncertain = (text: string) => UNCERTAIN_RE.test(text);
+
 export default function PlaygroundPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
@@ -67,6 +70,14 @@ export default function PlaygroundPage() {
                 )}
                 {t.text}
               </div>
+              {t.role === 'model' && isUncertain(t.text) && (
+                <div className="max-w-[85%] text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                  <span>💡 המודל לא מצא מידע זה בפרופיל שלך.</span>
+                  <a href="/profile" className="underline font-semibold whitespace-nowrap">הוסף לפרופיל ←</a>
+                  <span className="opacity-60 mx-0.5">|</span>
+                  <a href="/learn" className="underline font-semibold whitespace-nowrap">מרכז למידה ←</a>
+                </div>
+              )}
               {t.role === 'model' && t.sources && t.sources.length > 0 && (
                 <details className="max-w-[85%] text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1">
                   <summary className="cursor-pointer select-none">

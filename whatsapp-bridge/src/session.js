@@ -126,15 +126,22 @@ async function start(userId, retryCount = 0) {
     // Forward inbound message to backend
     try {
       const contact = await m.getContact();
+      // Normalize @lid → @c.us so the backend can match stored contacts.
+      // WhatsApp is migrating some contacts to LID format; contact.number
+      // still holds the phone number in both cases.
+      let from = m.from;
+      if (from.endsWith('@lid') && contact?.number) {
+        from = `${contact.number}@c.us`;
+      }
       sendWebhook(userId, 'message', {
-        from: m.from,
+        from,
         direction: 'in',
         text: m.body,
         ts: m.timestamp ? m.timestamp * 1000 : Date.now(),
         meta: {
-          chat_id: m.from,
+          chat_id: from,
           contact_name: contact?.pushname || contact?.name || null,
-          is_group: m.from.endsWith('@g.us'),
+          is_group: from.endsWith('@g.us'),
         },
       });
     } catch (err) {
@@ -212,11 +219,16 @@ async function listContacts(userId) {
   const cs = await entry.client.getContacts();
   return cs
     .filter((c) => c.id?._serialized && (c.isUser || c.isGroup))
-    .map((c) => ({
-      wa_id: c.id._serialized,
+    .map((c) => {
+      // Normalize @lid contacts to @c.us format using the phone number
+      const rawId = c.id._serialized;
+      const wa_id = (rawId.endsWith('@lid') && c.number) ? `${c.number}@c.us` : rawId;
+      return {
+      wa_id,
       name: c.name || c.pushname || c.shortName || null,
       is_group: !!c.isGroup,
-    }));
+      };
+    });
 }
 
 async function shutdown() {

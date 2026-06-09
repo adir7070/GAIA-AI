@@ -15,7 +15,7 @@ const SCALAR: { key: keyof StyleTraits; label: string }[] = [
   { key: 'tone', label: 'טון' },
   { key: 'formality', label: 'רמת רשמיות' },
   { key: 'typical_length', label: 'אורך תשובה אופייני' },
-  { key: 'emoji_usage', label: "שימוש באימוג'י" },
+  { key: 'emoji_usage', label: "תיאור שימוש באימוג'י" },
   { key: 'greeting_style', label: 'איך אני פותח שיחה' },
   { key: 'signoff_style', label: 'איך אני מסיים שיחה' },
   { key: 'slang', label: 'סלנג / שפה' },
@@ -117,6 +117,14 @@ export default function ProfilePage() {
     }
   };
 
+  const emojiLabel = (v: number) => {
+    if (v <= 15) return 'כמעט אף פעם';
+    if (v <= 35) return 'לעיתים נדירות';
+    if (v <= 55) return 'מדי פעם';
+    if (v <= 75) return 'לעיתים קרובות';
+    return 'כמעט בכל הודעה';
+  };
+
   const setScalar = (k: keyof StyleTraits, v: string) => setTraits((t) => ({ ...t, [k]: v }));
   const setList = (k: keyof StyleTraits, v: string) =>
     setTraits((t) => ({ ...t, [k]: v.split(',').map((s) => s.trim()).filter(Boolean) }));
@@ -164,6 +172,30 @@ export default function ProfilePage() {
 
           <div className="card">
             <h2 className="font-semibold mb-3">תכונות הסגנון</h2>
+
+            {/* Emoji frequency slider */}
+            <div className="mb-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium">כמה אימוג׳ים אני משתמש?</label>
+                <span className="text-sm font-bold text-brand-600">
+                  {traits.emoji_frequency ?? 30}/100 — {emojiLabel(traits.emoji_frequency ?? 30)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={100}
+                value={traits.emoji_frequency ?? 30}
+                onChange={(e) => setTraits((t) => ({ ...t, emoji_frequency: Number(e.target.value) }))}
+                className="w-full accent-brand-600"
+              />
+              <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                <span>1 — אף פעם</span>
+                <span>50 — מדי פעם</span>
+                <span>100 — כל הודעה</span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {SCALAR.map(({ key, label }) => (
                 <div key={key}>
