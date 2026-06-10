@@ -37,3 +37,9 @@ process.on('SIGTERM', () => {
   console.log('[bridge] SIGTERM, shutting down');
   sessions.shutdown().then(() => process.exit(0));
 });
+
+// Prevent "auth timeout" and similar whatsapp-web.js promise rejections from crashing the process.
+// The session will self-recover via the disconnected / auth_failure event handlers.
+process.on('unhandledRejection', (reason) => {
+  console.warn('[bridge] unhandled rejection (swallowed):', reason?.message || reason);
+});
